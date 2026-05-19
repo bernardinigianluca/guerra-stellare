@@ -194,6 +194,14 @@ function saveBest(value) {
 let audioCtx = null, masterGain = null;
 let muted = false, musicStarted = false, musicNodes = [];
 let introMusicStarted = false, introMusicNodes = [], introMusicTimer = null;
+const introTrack = new Audio('star-wars.mp3');
+introTrack.preload = 'auto';
+introTrack.loop = true;
+introTrack.volume = 0.58;
+const battleTrack = new Audio('star-wars.mp3');
+battleTrack.preload = 'auto';
+battleTrack.loop = true;
+battleTrack.volume = 0.48;
 
 function ensureAudio() {
   if (audioCtx) return;
@@ -287,21 +295,49 @@ function startMusic() {
   })();
 }
 
+function stopMusic() {
+  musicStarted = false;
+  for (const n of musicNodes) {
+    try { n.stop(); } catch { /* node already stopped */ }
+  }
+  musicNodes = [];
+}
+
 function stopIntroMusic() {
   introMusicStarted = false;
   if (introMusicTimer) {
     clearTimeout(introMusicTimer);
     introMusicTimer = null;
   }
+  introTrack.pause();
+  introTrack.currentTime = 0;
   for (const n of introMusicNodes) {
     try { n.stop(); } catch { /* node already stopped */ }
   }
   introMusicNodes = [];
 }
 
-function startIntroMusic() {
-  if (!audioCtx || introMusicStarted) return;
-  introMusicStarted = true;
+function stopBattleMusic() {
+  battleTrack.pause();
+  battleTrack.currentTime = 0;
+  stopMusic();
+}
+
+function startBattleMusic() {
+  stopMusic();
+  battleTrack.muted = muted;
+  const playPromise = battleTrack.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(() => {
+      if (GS.mode === 'play') startMusic();
+    });
+    return;
+  }
+  if (battleTrack.paused) startMusic();
+}
+
+function startIntroSynthMusic() {
+  if (!audioCtx) return;
 
   const drone = audioCtx.createOscillator();
   const droneGain = audioCtx.createGain();
@@ -333,6 +369,20 @@ function startIntroMusic() {
     idx++;
     introMusicTimer = setTimeout(introLoop, 270);
   })();
+}
+
+function startIntroMusic() {
+  if (introMusicStarted) return;
+  introMusicStarted = true;
+  introTrack.muted = muted;
+  const playPromise = introTrack.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(() => {
+      if (introMusicStarted && GS.mode === 'intro') startIntroSynthMusic();
+    });
+    return;
+  }
+  if (introTrack.paused) startIntroSynthMusic();
 }
 
 // ── UTILS ────────────────────────────────────────────────────────────────────
@@ -438,6 +488,7 @@ function init() {
 }
 
 function startIntro() {
+  stopBattleMusic();
   GS.mode = 'intro';
   GS.introTime = 0;
   GS.introCueDone = false;
@@ -448,7 +499,7 @@ function startGame() {
   stopIntroMusic();
   GS.mode = 'play';
   init();
-  startMusic();
+  startBattleMusic();
 }
 
 function setMessage(text, ttl) {
@@ -1431,6 +1482,7 @@ function hitPlayer() {
   bumpShake(0.58);
   setMessage('SCAFI COLPITI', 1.2);
   if (GS.lives <= 0) {
+    stopBattleMusic();
     GS.mode = 'over';
     SFX.gameOver();
     if (GS.score > GS.best) {
@@ -1513,6 +1565,7 @@ function loop(ts) {
   }
   if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro')) {
     if (GS.mode === 'intro') stopIntroMusic();
+    if (GS.mode === 'play' || GS.mode === 'pause') stopBattleMusic();
     GS.mode = 'menu';
   }
   if (KP.KeyP) {
@@ -1522,6 +1575,8 @@ function loop(ts) {
   if (KP.KeyM) {
     muted = !muted;
     if (masterGain) masterGain.gain.value = muted ? 0 : 0.55;
+    introTrack.muted = muted;
+    battleTrack.muted = muted;
   }
 
   update(dt);
