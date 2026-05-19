@@ -381,23 +381,22 @@ function spawnWave() {
   eGroup = { dx: 1, speed: 40 + GS.wave * 10, shoot: 1.4 };
   setMessage('ONDA ' + GS.wave, 1.8);
 
-  const vaderSlot = { x: 115 + 3 * 98, y: 75 + 2 * 66 };
+  const vaderSlot = { x: W * 0.5, y: 38 };
+  const vaderHp = 10 + Math.floor(GS.wave * 1.5);
+
+  enemies.push({
+    x: vaderSlot.x, y: vaderSlot.y,
+    bx: vaderSlot.x, by: vaderSlot.y,
+    w: 76, h: 76, type: 'vader',
+    hp: vaderHp,
+    maxHp: vaderHp,
+    alive: true, anim: rand(0, 6.28), dive: null
+  });
 
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < 6; c++) {
       const x = 115 + c * 98;
       const y = 75 + r * 66;
-      if (r === 2 && c === 3) {
-        enemies.push({
-          x: vaderSlot.x, y: vaderSlot.y,
-          bx: vaderSlot.x, by: vaderSlot.y,
-          w: 58, h: 58, type: 'vader',
-          hp: 5,
-          maxHp: 5,
-          alive: true, anim: rand(0, 6.28), dive: null
-        });
-        continue;
-      }
       const type = r === 0 ? 'boss' : r < 3 ? 'mid' : 'basic';
       enemies.push({
         x, y,
@@ -622,12 +621,12 @@ function drawTIE(x, y, type, anim, hp, maxHp) {
   ctx.restore();
 }
 
-function drawDarkVader(x, y, anim, hp, maxHp) {
+function drawDarkVader(x, y, anim, hp, maxHp, size) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(Math.sin(anim * 1.4) * 0.035);
 
-  const size = 60;
+  const spriteSize = size || 60;
   const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 42);
   glow.addColorStop(0, 'rgba(255,70,30,0.34)');
   glow.addColorStop(0.55, 'rgba(140,0,0,0.22)');
@@ -640,7 +639,7 @@ function drawDarkVader(x, y, anim, hp, maxHp) {
   if (vaderSpriteReady) {
     ctx.shadowColor = 'rgba(255,90,40,0.55)';
     ctx.shadowBlur = 18;
-    ctx.drawImage(vaderSprite, -size * 0.5, -size * 0.5, size, size);
+    ctx.drawImage(vaderSprite, -spriteSize * 0.5, -spriteSize * 0.5, spriteSize, spriteSize);
     ctx.shadowBlur = 0;
   } else {
     ctx.fillStyle = '#151515';
@@ -1314,7 +1313,7 @@ function renderScene() {
   if (mothership) drawMothership(mothership);
   for (const e of enemies) {
     if (!e.alive) continue;
-    if (e.type === 'vader') drawDarkVader(e.x, e.y, e.anim, e.hp, e.maxHp);
+    if (e.type === 'vader') drawDarkVader(e.x, e.y, e.anim, e.hp, e.maxHp, e.w);
     else drawTIE(e.x, e.y, e.type, e.anim, e.hp, e.maxHp);
   }
   for (const b of bullets)  drawBullet(b);
