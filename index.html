@@ -193,6 +193,7 @@ function saveBest(value) {
 // ── AUDIO ────────────────────────────────────────────────────────────────────
 let audioCtx = null, masterGain = null;
 let muted = false, musicStarted = false, musicNodes = [];
+let introMusicStarted = false, introMusicNodes = [], introMusicTimer = null;
 
 function ensureAudio() {
   if (audioCtx) return;
@@ -246,6 +247,11 @@ const SFX = {
   extraLife()    { [523,659,784,1047].forEach((f,i) => tone(f,'sine',0.18,0.28,null,i*0.10)); },
   waveComplete() { [392,494,587,784,988].forEach((f,i) => tone(f,'square',0.22,0.18,null,i*0.09)); },
   gameOver()     { [523,440,349,220].forEach((f,i) => tone(f,'sine',0.38,0.30,null,i*0.26)); },
+  crawlEnter()   {
+    tone(294, 'triangle', 0.35, 0.17, 220, 0);
+    tone(440, 'sawtooth', 0.22, 0.11, 330, 0.08);
+    tone(587, 'sine', 0.26, 0.1, 440, 0.16);
+  },
   mothershipAlarm() {
     for (let i = 0; i < 3; i++) {
       tone(820,'square',0.09,0.17,null, i*0.22);
@@ -278,6 +284,54 @@ function startMusic() {
     tone(seq[idx % seq.length], 'triangle', 0.26, 0.052);
     idx++;
     setTimeout(arp, Math.max(175, 310 - GS.wave * 9));
+  })();
+}
+
+function stopIntroMusic() {
+  introMusicStarted = false;
+  if (introMusicTimer) {
+    clearTimeout(introMusicTimer);
+    introMusicTimer = null;
+  }
+  for (const n of introMusicNodes) {
+    try { n.stop(); } catch { /* node already stopped */ }
+  }
+  introMusicNodes = [];
+}
+
+function startIntroMusic() {
+  if (!audioCtx || introMusicStarted) return;
+  introMusicStarted = true;
+
+  const drone = audioCtx.createOscillator();
+  const droneGain = audioCtx.createGain();
+  drone.type = 'triangle';
+  drone.frequency.value = 73.4;
+  droneGain.gain.value = muted ? 0 : 0.048;
+  drone.connect(droneGain);
+  droneGain.connect(masterGain);
+  drone.start();
+  introMusicNodes.push(drone);
+
+  const pad = audioCtx.createOscillator();
+  const padGain = audioCtx.createGain();
+  pad.type = 'sine';
+  pad.frequency.value = 146.8;
+  padGain.gain.value = muted ? 0 : 0.03;
+  pad.connect(padGain);
+  padGain.connect(masterGain);
+  pad.start();
+  introMusicNodes.push(pad);
+
+  const melody = [294, 392, 440, 523, 587, 523, 440, 392, 349, 440, 494, 587];
+  let idx = 0;
+  (function introLoop() {
+    if (!introMusicStarted || GS.mode !== 'intro') return;
+    const note = melody[idx % melody.length];
+    tone(note, 'square', 0.2, 0.08);
+    if (idx % 3 === 2) tone(note * 0.5, 'sine', 0.28, 0.05, note * 0.4, 0.02);
+    idx++;
+    introMusicTimer = setTimeout(introLoop, 270);
   })();
 }
 
@@ -340,7 +394,7 @@ for (const btn of touchUI.querySelectorAll('[data-key]')) {
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 const GS = {
   mode: 'menu', score: 0, best: loadBest(), lives: 3, wave: 1, waveKills: 0,
-  combo: 1, comboTimer: 0, message: '', messageTimer: 0, shake: 0, introTime: 0
+  combo: 1, comboTimer: 0, message: '', messageTimer: 0, shake: 0, introTime: 0, introCueDone: false
 };
 const WAVE_SIZE = 30;
 const ENEMY_SIZE_FACTOR = 0.55;
@@ -386,9 +440,12 @@ function init() {
 function startIntro() {
   GS.mode = 'intro';
   GS.introTime = 0;
+  GS.introCueDone = false;
+  startIntroMusic();
 }
 
 function startGame() {
+  stopIntroMusic();
   GS.mode = 'play';
   init();
   startMusic();
@@ -1132,6 +1189,10 @@ function drawOverScreen() {
 function update(dt) {
   if (GS.mode === 'intro') {
     GS.introTime += dt;
+    if (!GS.introCueDone && GS.introTime >= 0.95) {
+      GS.introCueDone = true;
+      SFX.crawlEnter();
+    }
     if (GS.introTime >= INTRO_DURATION) startGame();
     return;
   }
@@ -1450,7 +1511,10 @@ function loop(ts) {
       startGame();
     }
   }
-  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro')) { GS.mode = 'menu'; }
+  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro')) {
+    if (GS.mode === 'intro') stopIntroMusic();
+    GS.mode = 'menu';
+  }
   if (KP.KeyP) {
     if (GS.mode === 'play') GS.mode = 'pause';
     else if (GS.mode === 'pause') GS.mode = 'play';
