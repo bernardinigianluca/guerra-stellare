@@ -622,6 +622,84 @@ function drawTIE(x, y, type, anim, hp, maxHp) {
   ctx.restore();
 }
 
+function drawDarkVader(x, y, anim, hp, maxHp) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.sin(anim * 1.4) * 0.035);
+
+  const size = 60;
+  const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 42);
+  glow.addColorStop(0, 'rgba(255,70,30,0.34)');
+  glow.addColorStop(0.55, 'rgba(140,0,0,0.22)');
+  glow.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(0, 0, 42, 0, Math.PI * 2);
+  ctx.fillStyle = glow;
+  ctx.fill();
+
+  if (vaderSpriteReady) {
+    ctx.shadowColor = 'rgba(255,90,40,0.55)';
+    ctx.shadowBlur = 18;
+    ctx.drawImage(vaderSprite, -size * 0.5, -size * 0.5, size, size);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = '#151515';
+    ctx.beginPath();
+    ctx.arc(0, 0, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#6a0000';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  const pulse = 0.45 + 0.35 * Math.sin(anim * 3.2);
+  ctx.beginPath();
+  ctx.arc(0, 0, 16, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,50,20,${pulse})`;
+  ctx.fill();
+
+  ctx.fillStyle = '#220000';
+  ctx.fillRect(-26, -40, 52, 5);
+  ctx.fillStyle = '#ff3300';
+  ctx.fillRect(-26, -40, 52 * (hp / maxHp), 5);
+  ctx.strokeStyle = 'rgba(255,120,80,0.42)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-26, -40, 52, 5);
+
+  ctx.restore();
+}
+
+function triggerEnemyPanic(sourceX, sourceY) {
+  if (!eGroup) return;
+  eGroup.dx = -eGroup.dx;
+  eGroup.speed = Math.min(eGroup.speed + 18, 120);
+  eGroup.shoot = Math.max(eGroup.shoot, 0.9);
+  for (const other of enemies) {
+    if (!other.alive || other.type === 'vader') continue;
+    const ang = Math.atan2(other.y - sourceY, other.x - sourceX);
+    const spd = rand(135, 210) + GS.wave * 6;
+    other.dive = { vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 20, t: 1.45 + rand(0, 0.55) };
+  }
+}
+
+function destroyEnemy(e) {
+  e.alive = false;
+  GS.waveKills++;
+  if (e.type === 'vader') {
+    addScore(90);
+    mkExplosion(e.x, e.y, 110);
+    SFX.explodeBig();
+    bumpShake(0.95);
+    setMessage('DARK VATER DISTRUTTO', 2.1);
+    triggerEnemyPanic(e.x, e.y);
+    return;
+  }
+  addScore(e.type === 'boss' ? 30 : e.type === 'mid' ? 20 : 10);
+  mkExplosion(e.x, e.y, 32);
+  SFX.explodeSmall();
+  bumpShake(0.18);
+}
+
 // ── DRAW: STAR DESTROYER (MOTHERSHIP) ────────────────────────────────────────
 function drawMothership(m) {
   ctx.save();
@@ -1128,11 +1206,7 @@ function update(dt) {
         b.own = 'x';
         e.hp--;
         if (e.hp <= 0) {
-          e.alive = false; GS.waveKills++;
-          addScore(e.type === 'boss' ? 30 : e.type === 'mid' ? 20 : 10);
-          mkExplosion(e.x, e.y, 32);
-          SFX.explodeSmall();
-          bumpShake(0.18);
+          destroyEnemy(e);
         }
         continue outer;
       }
@@ -1240,7 +1314,8 @@ function renderScene() {
   if (mothership) drawMothership(mothership);
   for (const e of enemies) {
     if (!e.alive) continue;
-    drawTIE(e.x, e.y, e.type, e.anim, e.hp, e.maxHp);
+    if (e.type === 'vader') drawDarkVader(e.x, e.y, e.anim, e.hp, e.maxHp);
+    else drawTIE(e.x, e.y, e.type, e.anim, e.hp, e.maxHp);
   }
   for (const b of bullets)  drawBullet(b);
   for (const b of eBullets) drawBullet(b);
