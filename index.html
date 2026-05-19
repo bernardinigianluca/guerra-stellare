@@ -340,11 +340,34 @@ for (const btn of touchUI.querySelectorAll('[data-key]')) {
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 const GS = {
   mode: 'menu', score: 0, best: loadBest(), lives: 3, wave: 1, waveKills: 0,
-  combo: 1, comboTimer: 0, message: '', messageTimer: 0, shake: 0
+  combo: 1, comboTimer: 0, message: '', messageTimer: 0, shake: 0, introTime: 0
 };
 const WAVE_SIZE = 30;
 const ENEMY_SIZE_FACTOR = 0.55;
 const SHIELD_DURATION = 10;
+const INTRO_DURATION = 19;
+const INTRO_CRAWL = [
+  'EPISODIO UNO',
+  '',
+  'L'IMPERO ATTACCA IL SETTORE',
+  'CON FLOTTE SEMPRE PIU AGGRESSIVE.',
+  '',
+  'TU GUIDI IL MILLENNIUM FALCON',
+  'NEL CUORE DELLA BATTAGLIA.',
+  '',
+  'OBIETTIVO:',
+  'ABBATTI I CACCIA NEMICI,',
+  'SOPRAVVIVI ALLE ONDATE,',
+  'E DISTRUGGI LA NAVE NODRIZA',
+  'PER OTTENERE SCUDO E VITA EXTRA.',
+  '',
+  'ATTENTO AGLI ASTEROIDI,',
+  'ALLE PICCHIATE IMPERIALI,',
+  'E AL CAPO OSCURO IN TESTA',
+  'ALLA FORMAZIONE.',
+  '',
+  'LA GALASSIA CONTA SU DI TE...'
+];
 
 // ── ENTITY COLLECTIONS ────────────────────────────────────────────────────────
 let player, bullets, eBullets, enemies, mothership, explosions, asteroids;
@@ -358,6 +381,17 @@ function init() {
   bullets = []; eBullets = []; explosions = []; asteroids = [];
   mothership = null; motherTimer = 18 + rand(0, 8);
   spawnWave();
+}
+
+function startIntro() {
+  GS.mode = 'intro';
+  GS.introTime = 0;
+}
+
+function startGame() {
+  GS.mode = 'play';
+  init();
+  startMusic();
 }
 
 function setMessage(text, ttl) {
@@ -1011,12 +1045,50 @@ function drawMenu() {
   // Blink prompt
   if (Math.floor(Date.now() / 540) % 2) {
     ctx.fillStyle = '#ffdd44'; ctx.font = 'bold 21px "Courier New"';
-    ctx.fillText('▸   PREMI  INVIO  PER  INIZIARE   ◂', W * 0.5, 568);
+    ctx.fillText('▸   PREMI  INVIO  PER  BRIEFING   ◂', W * 0.5, 568);
   }
 
   ctx.fillStyle = '#385050'; ctx.font = '13px "Courier New"';
   ctx.fillText('Distruggi la Nave Nodriza per guadagnare una vita extra!', W * 0.5, 592);
   ctx.fillText('Attenzione agli asteroidi!', W * 0.5, 612);
+}
+
+function drawIntroCrawl() {
+  ctx.textAlign = 'center';
+
+  const t = GS.introTime;
+  const speed = 56;
+  const baseY = H + 170 - t * speed;
+
+  const titleGlow = 0.6 + 0.4 * Math.sin(Date.now() * 0.003);
+  ctx.fillStyle = `rgba(255, 210, 96, ${0.35 * titleGlow})`;
+  ctx.font = 'bold 24px "Courier New"';
+  ctx.fillText('TRASMISSIONE OLOGRAFICA', W * 0.5, 88);
+
+  for (let i = 0; i < INTRO_CRAWL.length; i++) {
+    const line = INTRO_CRAWL[i];
+    const y = baseY + i * 62;
+    if (y < 70 || y > H + 120) continue;
+
+    const p = clamp((y - 78) / (H - 78), 0, 1);
+    const scale = 0.26 + p * 1.06;
+    const alpha = 0.08 + p * 0.9;
+
+    ctx.save();
+    ctx.translate(W * 0.5, y);
+    ctx.scale(scale, scale * 0.9);
+    ctx.fillStyle = `rgba(255, 214, 102, ${alpha})`;
+    ctx.font = 'bold 42px "Courier New"';
+    ctx.fillText(line, 0, 0);
+    ctx.restore();
+  }
+
+  const fade = clamp((INTRO_DURATION - t) / 2.2, 0, 1);
+  ctx.fillStyle = `rgba(10, 18, 34, ${0.5 + 0.5 * (1 - fade)})`;
+  ctx.fillRect(0, H - 66, W, 66);
+  ctx.fillStyle = 'rgba(160, 190, 255, 0.88)';
+  ctx.font = '16px "Courier New"';
+  ctx.fillText('INVIO: salta briefing   ESC: torna al menu', W * 0.5, H - 26);
 }
 
 function drawPauseScreen() {
@@ -1058,6 +1130,12 @@ function drawOverScreen() {
 
 // ── UPDATE ────────────────────────────────────────────────────────────────────
 function update(dt) {
+  if (GS.mode === 'intro') {
+    GS.introTime += dt;
+    if (GS.introTime >= INTRO_DURATION) startGame();
+    return;
+  }
+
   if (GS.mode !== 'play') return;
 
   if (GS.comboTimer > 0) GS.comboTimer -= dt;
@@ -1346,6 +1424,7 @@ function render() {
   }
 
   if (GS.mode === 'menu') { drawMenu(); return; }
+  if (GS.mode === 'intro') { drawIntroCrawl(); return; }
   if (GS.mode === 'over') { renderScene(); drawHUD(); drawOverScreen(); return; }
   if (GS.mode === 'pause') { renderScene(); drawHUD(); drawStatusBanner(); drawPauseScreen(); return; }
 
@@ -1363,12 +1442,15 @@ function loop(ts) {
   // Global input handling
   if (KP.Enter || KP.NumpadEnter) {
     if (GS.mode === 'menu' || GS.mode === 'over') {
-      GS.mode = 'play'; init(); startMusic();
+      if (GS.mode === 'menu') startIntro();
+      else startGame();
     } else if (GS.mode === 'pause') {
       GS.mode = 'play';
+    } else if (GS.mode === 'intro') {
+      startGame();
     }
   }
-  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause')) { GS.mode = 'menu'; }
+  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro')) { GS.mode = 'menu'; }
   if (KP.KeyP) {
     if (GS.mode === 'play') GS.mode = 'pause';
     else if (GS.mode === 'pause') GS.mode = 'play';
