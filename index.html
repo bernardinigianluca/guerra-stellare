@@ -198,7 +198,7 @@ const introTrack = new Audio('star-wars.mp3');
 introTrack.preload = 'auto';
 introTrack.loop = true;
 introTrack.volume = 0.58;
-const battleTrack = new Audio('star-wars.mp3');
+const battleTrack = new Audio('star-wars-battlie.mp3');
 battleTrack.preload = 'auto';
 battleTrack.loop = true;
 battleTrack.volume = 0.48;
@@ -326,14 +326,9 @@ function stopBattleMusic() {
 function startBattleMusic() {
   stopMusic();
   battleTrack.muted = muted;
-  const playPromise = battleTrack.play();
-  if (playPromise && typeof playPromise.catch === 'function') {
-    playPromise.catch(() => {
-      if (GS.mode === 'play') startMusic();
-    });
-    return;
-  }
-  if (battleTrack.paused) startMusic();
+  battleTrack.play().catch(() => {
+    // In battle we want only the provided MP3 as background music.
+  });
 }
 
 function startIntroSynthMusic() {
