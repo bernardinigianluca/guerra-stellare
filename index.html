@@ -167,6 +167,11 @@ let tieSpriteReady = false;
 tieSprite.onload = () => { tieSpriteReady = true; };
 tieSprite.src = 'tie_fighter.png';
 
+const vaderSprite = new Image();
+let vaderSpriteReady = false;
+vaderSprite.onload = () => { vaderSpriteReady = true; };
+vaderSprite.src = 'caza_dark_vater.png';
+
 const BEST_KEY = 'guerra-stellare-best';
 
 function loadBest() {
@@ -375,12 +380,28 @@ function spawnWave() {
   enemies = [];
   eGroup = { dx: 1, speed: 40 + GS.wave * 10, shoot: 1.4 };
   setMessage('ONDA ' + GS.wave, 1.8);
+
+  const vaderSlot = { x: W * 0.5, y: 75 + 2 * 66 };
+
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < 6; c++) {
+      const x = 115 + c * 98;
+      const y = 75 + r * 66;
+      if (r === 2 && c === 2) {
+        enemies.push({
+          x: vaderSlot.x, y: vaderSlot.y,
+          bx: vaderSlot.x, by: vaderSlot.y,
+          w: 58, h: 58, type: 'vader',
+          hp: 5,
+          maxHp: 5,
+          alive: true, anim: rand(0, 6.28), dive: null
+        });
+        continue;
+      }
       const type = r === 0 ? 'boss' : r < 3 ? 'mid' : 'basic';
       enemies.push({
-        x: 115 + c * 98, y: 75 + r * 66,
-        bx: 115 + c * 98, by: 75 + r * 66,
+        x, y,
+        bx: x, by: y,
         w: 52 * ENEMY_SIZE_FACTOR, h: 38 * ENEMY_SIZE_FACTOR, type,
         hp: type === 'boss' ? 3 : 1,
         maxHp: type === 'boss' ? 3 : 1,
