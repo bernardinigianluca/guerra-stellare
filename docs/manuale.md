@@ -83,6 +83,11 @@ Transizioni principali:
 - In livello 2 il Falcon resta nella corsia della trincea e deve avanzare fino al punto debole.
   - Dopo alcuni secondi entra la nave di Luke (piu piccola del Falcon), guidata da IA.
   - La nave IA si muove in autonomia, ingaggia bersagli e aiuta a ripulire i nemici (e il punto debole quando aperto).
+  - IA di Luke avanzata:
+    - priorita bersagli: turret, poi interceptor, poi bomber
+    - lock del bersaglio per evitare cambi continui e mantenere fuoco efficace
+    - ruoli dinamici: copertura Falcon, caccia nemici, attacco punto debole nelle fasi finali
+    - micro-evasione automatica dai colpi nemici vicini
   - A fine avanzamento compare il punto debole (`exhaust port`) da colpire piu volte.
   - Il punto debole alterna finestre `aperto/chiuso`: i colpi entrano solo quando e aperto.
   - Nemici livello 2 differenziati:

@@ -518,6 +518,7 @@ let eGroup, motherTimer;
 let trenchEnemies, trenchSpawnTimer, trenchShootTimer, exhaustPort;
 let cinematicState;
 let lukeWing;
+let trenchEnemyIdCounter = 1;
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
@@ -553,6 +554,8 @@ function init() {
     shot: 0,
     enterDelay: 6.2,
     targetLock: null,
+    lockTimer: 0,
+    role: 'cover',
     spark: 0
   };
   mothership = null; motherTimer = 18 + rand(0, 8);
@@ -635,6 +638,7 @@ function startDeathStarRun() {
   bullets = [];
   eBullets = [];
   trenchEnemies = [];
+  trenchEnemyIdCounter = 1;
   trenchSpawnTimer = 0.55;
   trenchShootTimer = 0.8;
   player.x = W * 0.5;
@@ -656,6 +660,8 @@ function startDeathStarRun() {
   lukeWing.shot = 0.9;
   lukeWing.enterDelay = 6.2;
   lukeWing.targetLock = null;
+  lukeWing.lockTimer = 0;
+  lukeWing.role = 'cover';
   lukeWing.spark = 0;
   setMessage('LIVELLO 2: TRINCEA DELLA MORTE NERA', 3.2);
 }
@@ -683,6 +689,7 @@ function spawnTrenchEnemy() {
   const speedBase = kind === 'interceptor' ? 210 : kind === 'bomber' ? 125 : 155;
   const speed = speedBase + GS.trenchProgress * 0.02 + rand(16, 62);
   trenchEnemies.push({
+    id: trenchEnemyIdCounter++,
     x,
     y,
     w: 52 * ENEMY_SIZE_FACTOR,
@@ -818,21 +825,70 @@ function updateLukeWingAI(dt) {
   }
   if (!lukeWing.active) return;
 
+  const aliveEnemies = trenchEnemies.filter(e => e.alive);
+
+  const canStrikePort = exhaustPort.active && exhaustPort.open;
+  if (canStrikePort && exhaustPort.hp <= 3) lukeWing.role = 'attack-port';
+  else if (aliveEnemies.length >= 4) lukeWing.role = 'hunter';
+  else lukeWing.role = 'cover';
+
   let targetEnemy = null;
-  let targetDist = Infinity;
-  for (const e of trenchEnemies) {
-    if (!e.alive) continue;
-    const d = dist2(lukeWing.x, lukeWing.y, e.x, e.y);
-    if (d < targetDist) {
-      targetDist = d;
+  let bestScore = -Infinity;
+  if (lukeWing.lockTimer > 0) lukeWing.lockTimer -= dt;
+
+  for (const e of aliveEnemies) {
+    const kindWeight = e.kind === 'turret' ? 130 : e.kind === 'interceptor' ? 92 : 68;
+    const dLuke = dist2(lukeWing.x, lukeWing.y, e.x, e.y);
+    const dPlayer = dist2(player.x, player.y, e.x, e.y);
+    const threat = Math.max(0, 180 - dPlayer * 0.38);
+    const distancePenalty = dLuke * 0.15;
+    const diveBonus = e.vy > 80 ? 24 : 0;
+    let score = kindWeight + threat + diveBonus - distancePenalty;
+
+    if (lukeWing.targetLock === e.id && lukeWing.lockTimer > 0) score += 32;
+    if (Math.abs(e.x - player.x) < 65 && e.y < player.y + 26) score += 22;
+
+    if (score > bestScore) {
+      bestScore = score;
       targetEnemy = e;
     }
   }
 
+  if (targetEnemy) {
+    lukeWing.targetLock = targetEnemy.id;
+    lukeWing.lockTimer = 0.55;
+  } else {
+    lukeWing.targetLock = null;
+    lukeWing.lockTimer = 0;
+  }
+
   const fallbackX = player.x - 62;
   const fallbackY = player.y + 16;
-  const desiredX = targetEnemy ? clamp(targetEnemy.x - 30, W * 0.5 - 175, W * 0.5 + 175) : fallbackX;
-  const desiredY = targetEnemy ? clamp(targetEnemy.y + 60, 112, H - 70) : fallbackY;
+  let desiredX = fallbackX;
+  let desiredY = fallbackY;
+
+  if (lukeWing.role === 'attack-port' && canStrikePort) {
+    desiredX = clamp(exhaustPort.x - 52, W * 0.5 - 175, W * 0.5 + 175);
+    desiredY = clamp(exhaustPort.y + 62, 116, H - 70);
+  } else if (targetEnemy) {
+    const leadX = targetEnemy.x + targetEnemy.vx * 0.2;
+    const leadY = targetEnemy.y + targetEnemy.vy * 0.2;
+    if (lukeWing.role === 'cover') {
+      desiredX = clamp(player.x - 70 + (leadX - player.x) * 0.22, W * 0.5 - 175, W * 0.5 + 175);
+      desiredY = clamp(player.y - 10, 112, H - 70);
+    } else {
+      desiredX = clamp(leadX - 26, W * 0.5 - 175, W * 0.5 + 175);
+      desiredY = clamp(leadY + 56, 112, H - 70);
+    }
+  }
+
+  for (const b of eBullets) {
+    if (Math.abs(b.y - lukeWing.y) < 52 && Math.abs(b.x - lukeWing.x) < 78) {
+      desiredX += b.x < lukeWing.x ? 24 : -24;
+      desiredY += 12;
+      break;
+    }
+  }
 
   const steer = 5.1;
   lukeWing.vx += (desiredX - lukeWing.x) * steer * dt;
@@ -849,18 +905,28 @@ function updateLukeWingAI(dt) {
   if (lukeWing.shot <= 0) {
     let tx = player.x;
     let ty = 80;
-    if (targetEnemy) {
-      tx = targetEnemy.x;
-      ty = targetEnemy.y;
-    } else if (exhaustPort.active && exhaustPort.open) {
+    let fireAtPort = false;
+
+    if (canStrikePort && (lukeWing.role === 'attack-port' || (!targetEnemy && exhaustPort.hp <= 6))) {
       tx = exhaustPort.x;
       ty = exhaustPort.y;
+      fireAtPort = true;
+    } else if (targetEnemy) {
+      tx = targetEnemy.x + targetEnemy.vx * 0.16;
+      ty = targetEnemy.y + targetEnemy.vy * 0.16;
+    } else if (canStrikePort) {
+      tx = exhaustPort.x;
+      ty = exhaustPort.y;
+      fireAtPort = true;
     }
+
     const ang = Math.atan2(ty - lukeWing.y, tx - lukeWing.x);
     const spd = 640;
     bullets.push({ x: lukeWing.x - 5, y: lukeWing.y - 20, vx: Math.cos(ang) * spd * 0.15, vy: Math.sin(ang) * spd, l: 18, own: 'ally' });
     bullets.push({ x: lukeWing.x + 5, y: lukeWing.y - 20, vx: Math.cos(ang) * spd * 0.15, vy: Math.sin(ang) * spd, l: 18, own: 'ally' });
-    lukeWing.shot = targetEnemy ? 0.26 : 0.34;
+    if (fireAtPort) lukeWing.shot = 0.24;
+    else if (targetEnemy && targetEnemy.kind === 'turret') lukeWing.shot = 0.2;
+    else lukeWing.shot = targetEnemy ? 0.26 : 0.34;
   }
 }
 
