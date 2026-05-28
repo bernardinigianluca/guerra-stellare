@@ -197,6 +197,8 @@ let introMusicStarted = false, introMusicNodes = [], introMusicTimer = null;
 const INTRO_BASE_VOLUME = 0.58;
 const INTRO_CRESCENDO_VOLUME = 0.88;
 const INTRO_CRESCENDO_WINDOW = 6;
+const INTRO_EPIC_BOOST_WINDOW = 2;
+const INTRO_EPIC_PEAK_VOLUME = 0.97;
 const introTrack = new Audio('star-wars.mp3');
 introTrack.preload = 'auto';
 introTrack.loop = true;
@@ -1542,7 +1544,14 @@ function update(dt) {
     GS.introTime += dt;
     const crescendoProgress = clamp((GS.introTime - (INTRO_DURATION - INTRO_CRESCENDO_WINDOW)) / INTRO_CRESCENDO_WINDOW, 0, 1);
     const easedCrescendo = Math.pow(crescendoProgress, 1.3);
-    introTrack.volume = INTRO_BASE_VOLUME + (INTRO_CRESCENDO_VOLUME - INTRO_BASE_VOLUME) * easedCrescendo;
+    const baseCrescendoVolume = INTRO_BASE_VOLUME + (INTRO_CRESCENDO_VOLUME - INTRO_BASE_VOLUME) * easedCrescendo;
+    const epicProgress = clamp((GS.introTime - (INTRO_DURATION - INTRO_EPIC_BOOST_WINDOW)) / INTRO_EPIC_BOOST_WINDOW, 0, 1);
+    const epicBoost = Math.pow(epicProgress, 2.4);
+    introTrack.volume = clamp(
+      baseCrescendoVolume + (INTRO_EPIC_PEAK_VOLUME - INTRO_CRESCENDO_VOLUME) * epicBoost,
+      INTRO_BASE_VOLUME,
+      INTRO_EPIC_PEAK_VOLUME
+    );
     if (!GS.introCueDone && GS.introTime >= 0.95) {
       GS.introCueDone = true;
       SFX.crawlEnter();
