@@ -123,6 +123,7 @@ Comportamento:
 - `M` toggla `muted` e sincronizza gain + mute delle tracce.
 - Intro usa fallback synth se il browser blocca autoplay della traccia.
 - Negli ultimi secondi del briefing intro la traccia `star-wars.mp3` applica un crescendo progressivo prima della transizione al gioco.
+- Negli ultimissimi 2 secondi l intro applica anche un boost piu aggressivo del volume per un finale piu epico.
 
 ## 10. Rendering e performance
 - Canvas fisso: `820x660`, ridimensionamento visuale via `syncViewport()`.
