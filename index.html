@@ -1419,11 +1419,10 @@ function drawIntroCrawl() {
   const t = GS.introTime;
   const speed = 48;
   const baseY = H + 170 - t * speed;
-  const outroFade = clamp((t - (INTRO_DURATION - 5.2)) / 5.2, 0, 1);
-  const outroAlpha = 1 - Math.pow(outroFade, 1.35);
+  const horizonY = 114;
 
   const titleGlow = 0.6 + 0.4 * Math.sin(Date.now() * 0.003);
-  ctx.fillStyle = `rgba(255, 210, 96, ${0.35 * titleGlow * outroAlpha})`;
+  ctx.fillStyle = `rgba(255, 210, 96, ${0.35 * titleGlow})`;
   ctx.font = 'bold 24px "Courier New"';
   ctx.fillText('TRASMISSIONE OLOGRAFICA', W * 0.5, 88);
 
@@ -1434,7 +1433,9 @@ function drawIntroCrawl() {
 
     const p = clamp((y - 78) / (H - 78), 0, 1);
     const scale = 0.26 + p * 1.06;
-    const alpha = (0.08 + p * 0.9) * outroAlpha;
+    // Fade by perspective distance: text vanishes as it reaches the horizon.
+    const perspectiveFade = clamp((y - horizonY) / (H - horizonY), 0, 1);
+    const alpha = (0.03 + p * 0.95) * Math.pow(perspectiveFade, 0.75);
 
     ctx.save();
     ctx.translate(W * 0.5, y);
@@ -1451,14 +1452,6 @@ function drawIntroCrawl() {
   ctx.fillStyle = 'rgba(160, 190, 255, 0.88)';
   ctx.font = '16px "Courier New"';
   ctx.fillText('INVIO: salta briefing   ESC: torna al menu', W * 0.5, H - 26);
-
-  if (outroFade > 0) {
-    ctx.fillStyle = `rgba(2, 5, 14, ${Math.min(0.92, outroFade * 0.92)})`;
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = `rgba(255, 208, 120, ${outroFade * 0.9})`;
-    ctx.font = 'bold 20px "Courier New"';
-    ctx.fillText('TRASMISSIONE IN CHIUSURA...', W * 0.5, H * 0.5 + 120);
-  }
 }
 
 function drawPauseScreen() {
