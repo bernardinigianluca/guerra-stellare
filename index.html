@@ -1009,13 +1009,24 @@ function drawBullet(b) {
   ctx.save();
   ctx.translate(b.x, b.y);
   const isP = b.own === 'p';
-  const c0 = isP ? 'rgba(100,255,100,0)' : 'rgba(255,70,20,0)';
-  const c1 = isP ? '#77ff77' : '#ff6622';
+  const c0 = isP ? 'rgba(120,255,220,0)' : 'rgba(255,70,20,0)';
+  const c1 = isP ? '#8bffe8' : '#ff6622';
   const g = ctx.createLinearGradient(0, -b.l * 0.5, 0, b.l * 0.5);
-  g.addColorStop(0, c0); g.addColorStop(0.5, c1); g.addColorStop(1, c0);
-  ctx.fillStyle = g; ctx.fillRect(-1.8, -b.l * 0.5, 3.6, b.l);
+  g.addColorStop(0, c0); g.addColorStop(0.45, c1); g.addColorStop(1, c0);
+  if (isP) {
+    ctx.shadowColor = 'rgba(115,255,235,0.95)';
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = g;
+    ctx.fillRect(-2.8, -b.l * 0.5, 5.6, b.l);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(225,255,245,0.98)';
+    ctx.fillRect(-0.95, -b.l * 0.5, 1.9, b.l);
+  } else {
+    ctx.fillStyle = g;
+    ctx.fillRect(-1.8, -b.l * 0.5, 3.6, b.l);
+  }
   ctx.beginPath(); ctx.arc(0, 0, isP ? 3.2 : 2.5, 0, Math.PI * 2);
-  ctx.fillStyle = isP ? 'rgba(190,255,190,0.85)' : 'rgba(255,150,80,0.85)'; ctx.fill();
+  ctx.fillStyle = isP ? 'rgba(215,255,240,0.96)' : 'rgba(255,150,80,0.85)'; ctx.fill();
   ctx.restore();
 }
 
@@ -1286,8 +1297,8 @@ function update(dt) {
     player.shot = 0.17;
     SFX.shoot();
     const by = player.y - 30;
-    bullets.push({ x: player.x - 7, y: by, vx: 0, vy: -500, l: 16, own: 'p' });
-    bullets.push({ x: player.x + 7, y: by, vx: 0, vy: -500, l: 16, own: 'p' });
+    bullets.push({ x: player.x - 7, y: by, vx: 0, vy: -680, l: 26, own: 'p' });
+    bullets.push({ x: player.x + 7, y: by, vx: 0, vy: -680, l: 26, own: 'p' });
   }
 
   // ── Move bullets
