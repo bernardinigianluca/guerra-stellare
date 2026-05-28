@@ -98,6 +98,7 @@ Transizioni principali:
 - Distrutto il punto debole: vittoria missione e salvataggio record.
   - Dopo il colpo finale parte una sequenza cinematica di fuga con esplosioni progressive della struttura.
 - Distruggere nemici incrementa punteggio e combo (max x5).
+- Al superamento di un livello le vite vengono rigenerate completamente (fino al massimo).
 - Se il player viene colpito: perde una vita, reset combo, breve invulnerabilita.
 - Distruzione nave nodriza:
   - assegna punti bonus
@@ -160,6 +161,7 @@ Entrambe gestiscono errori in modo safe (es. limiti modalita file locale).
 - `W = 820`, `H = 660`
 - `WAVE_SIZE = 30`
 - `ENEMY_SIZE_FACTOR = 0.55`
+- `MAX_LIVES = 6`
 - `SHIELD_DURATION = 10`
 - `INTRO_DURATION = 40`
 - `TRENCH_GOAL = 3600`

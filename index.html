@@ -491,6 +491,7 @@ const GS = {
 };
 const WAVE_SIZE = 30;
 const ENEMY_SIZE_FACTOR = 0.55;
+const MAX_LIVES = 6;
 const SHIELD_DURATION = 10;
 const INTRO_DURATION = 40;
 const TRENCH_GOAL = 3600;
@@ -637,6 +638,7 @@ function startDeathStarRun() {
   GS.wave = 2;
   GS.waveKills = 0;
   GS.trenchProgress = 0;
+  GS.lives = MAX_LIVES;
   enemies = [];
   asteroids = [];
   mothership = null;
@@ -1843,6 +1845,7 @@ function update(dt) {
   // ── Enemies
   const alive = enemies.filter(e => e.alive);
   if (alive.length === 0) {
+    GS.lives = MAX_LIVES;
     if (GS.wave === 1) {
       SFX.waveComplete();
       startDeathStarRun();
