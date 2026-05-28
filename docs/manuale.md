@@ -151,7 +151,7 @@ Entrambe gestiscono errori in modo safe (es. limiti modalita file locale).
 - `WAVE_SIZE = 30`
 - `ENEMY_SIZE_FACTOR = 0.55`
 - `SHIELD_DURATION = 10`
-- `INTRO_DURATION = 32`
+- `INTRO_DURATION = 40`
 - `TRENCH_GOAL = 3600`
 
 ## 13. Funzioni chiave (mappa rapida)
