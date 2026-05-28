@@ -28,6 +28,7 @@ Nota: il progetto e pensato per funzionare anche in modalita file locale (`file:
   - `caza_dark_vater.png` (sprite mini-boss Vader)
   - `star-wars.mp3` (traccia intro)
   - `star-wars-battlie.mp3` (musica battaglia)
+  - `star-wars-battlie2.mp3` (SFX sparo Falcon)
   - altri mp3 presenti ma non agganciati alla logica attuale
 
 ## 4. Controlli
@@ -51,6 +52,7 @@ La macchina a stati usa `GS.mode` con questi valori:
 - `play`: partita in corso
 - `pause`: gioco congelato con overlay
 - `over`: game over con punteggio finale
+- `victory`: schermata vittoria dopo distruzione punto debole
 
 Transizioni principali:
 - `menu -> intro` con `Invio`
@@ -58,6 +60,8 @@ Transizioni principali:
 - `play <-> pause` con `P`
 - `play/pause/intro -> menu` con `Esc`
 - `over -> play` con `Invio`
+- `play (fase spazio) -> play (fase trincea)` automaticamente dopo pulizia totale nemici
+- `play (fase trincea) -> victory` quando il punto debole viene distrutto
 
 ## 6. Entita principali
 - Player (Millennium Falcon): posizione, velocita, invulnerabilita, scudo, cooldown sparo.
@@ -70,6 +74,12 @@ Transizioni principali:
 
 ## 7. Regole gameplay
 - Le ondate sono composte da 30 nemici (`WAVE_SIZE = 30`) con difficolta crescente.
+- Sequenza campagna attuale:
+  - Livello 1: battaglia spaziale classica (formazioni + minaccia nodriza)
+  - Livello 2: Death Star Run nella trincea con spawn nemici da lati/alto
+- In livello 2 il Falcon resta nella corsia della trincea e deve avanzare fino al punto debole.
+- A fine avanzamento compare il punto debole (`exhaust port`) da colpire piu volte.
+- Distrutto il punto debole: vittoria missione e salvataggio record.
 - Distruggere nemici incrementa punteggio e combo (max x5).
 - Se il player viene colpito: perde una vita, reset combo, breve invulnerabilita.
 - Distruzione nave nodriza:
@@ -82,7 +92,7 @@ Transizioni principali:
 HUD mostra:
 - Punteggio corrente
 - Record (localStorage)
-- Onda e kill dell ondata
+- Onda/kill (fase spazio) oppure livello/progresso trincea (fase Death Star Run)
 - Combo e barra tempo combo
 - Scudo attivo e timer residuo
 - Vite (icone falcon)
@@ -96,6 +106,8 @@ Pipeline audio mista:
 - HTMLAudioElement per musica:
   - intro: `star-wars.mp3`
   - battaglia: `star-wars-battlie.mp3`
+- HTMLAudioElement per SFX sparo Falcon:
+  - `star-wars-battlie2.mp3` (con cooldown anti-sovrapposizione)
 - Web Audio API per effetti sonori sintetici (`tone`, `noise`, oggetto `SFX`)
 
 Comportamento:
@@ -130,12 +142,14 @@ Entrambe gestiscono errori in modo safe (es. limiti modalita file locale).
 - `ENEMY_SIZE_FACTOR = 0.55`
 - `SHIELD_DURATION = 10`
 - `INTRO_DURATION = 19`
+- `TRENCH_GOAL = 3600`
 
 ## 13. Funzioni chiave (mappa rapida)
 - Setup/responsive: `syncViewport()`
 - Audio: `ensureAudio()`, `startIntroMusic()`, `startBattleMusic()`, `stopIntroMusic()`, `stopBattleMusic()`
 - Stato gioco: `init()`, `startIntro()`, `startGame()`, `spawnWave()`, `update(dt)`, `hitPlayer()`
-- Rendering: `render()`, `renderScene()`, `drawHUD()`, `drawMenu()`, `drawIntroCrawl()`, `drawOverScreen()`
+- Stato livello 2: `startDeathStarRun()`, `spawnTrenchEnemy()`, `updateTrenchRun(dt)`
+- Rendering: `render()`, `renderScene()`, `drawTrenchScene()`, `drawHUD()`, `drawMenu()`, `drawIntroCrawl()`, `drawOverScreen()`, `drawVictoryScreen()`
 - Main loop: `loop(ts)`
 
 ## 14. Manutenzione e modifiche consigliate

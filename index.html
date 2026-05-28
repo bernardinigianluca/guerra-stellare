@@ -457,12 +457,14 @@ for (const btn of touchUI.querySelectorAll('[data-key]')) {
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 const GS = {
   mode: 'menu', score: 0, best: loadBest(), lives: 3, wave: 1, waveKills: 0,
-  combo: 1, comboTimer: 0, message: '', messageTimer: 0, shake: 0, introTime: 0, introCueDone: false
+  combo: 1, comboTimer: 0, message: '', messageTimer: 0, shake: 0, introTime: 0, introCueDone: false,
+  phase: 'space', trenchProgress: 0
 };
 const WAVE_SIZE = 30;
 const ENEMY_SIZE_FACTOR = 0.55;
 const SHIELD_DURATION = 10;
 const INTRO_DURATION = 19;
+const TRENCH_GOAL = 3600;
 const INTRO_CRAWL = [
   'EPISODIO UNO',
   '',
@@ -489,13 +491,20 @@ const INTRO_CRAWL = [
 // ── ENTITY COLLECTIONS ────────────────────────────────────────────────────────
 let player, bullets, eBullets, enemies, mothership, explosions, asteroids;
 let eGroup, motherTimer;
+let trenchEnemies, trenchSpawnTimer, trenchShootTimer, exhaustPort;
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
   GS.score = 0; GS.lives = 3; GS.wave = 1; GS.waveKills = 0;
   GS.combo = 1; GS.comboTimer = 0; GS.shake = 0;
+  GS.phase = 'space';
+  GS.trenchProgress = 0;
   player = { x: W / 2, y: H - 95, spd: 320, inv: 0, shield: 0, shot: 0 };
   bullets = []; eBullets = []; explosions = []; asteroids = [];
+  trenchEnemies = [];
+  trenchSpawnTimer = 0.55;
+  trenchShootTimer = 0.8;
+  exhaustPort = { active: false, x: W * 0.5, y: 118, w: 46, h: 24, hp: 10, maxHp: 10 };
   mothership = null; motherTimer = 18 + rand(0, 8);
   spawnWave();
 }
@@ -563,6 +572,63 @@ function spawnWave() {
       });
     }
   }
+}
+
+function startDeathStarRun() {
+  GS.phase = 'trench';
+  GS.wave = 2;
+  GS.waveKills = 0;
+  GS.trenchProgress = 0;
+  enemies = [];
+  asteroids = [];
+  mothership = null;
+  bullets = [];
+  eBullets = [];
+  trenchEnemies = [];
+  trenchSpawnTimer = 0.55;
+  trenchShootTimer = 0.8;
+  player.x = W * 0.5;
+  player.y = H * 0.72;
+  player.inv = 1.8;
+  player.shield = Math.max(player.shield, 2.5);
+  exhaustPort.active = false;
+  exhaustPort.hp = exhaustPort.maxHp;
+  setMessage('LIVELLO 2: TRINCEA DELLA MORTE NERA', 3.2);
+}
+
+function spawnTrenchEnemy() {
+  const side = Math.floor(Math.random() * 3);
+  const typeRoll = Math.random();
+  const type = typeRoll < 0.62 ? 'basic' : typeRoll < 0.9 ? 'mid' : 'boss';
+  let x = W * 0.5;
+  let y = -40;
+
+  if (side === 0) {
+    x = W * 0.5 - 220;
+    y = rand(130, H - 120);
+  } else if (side === 1) {
+    x = W * 0.5 + 220;
+    y = rand(130, H - 120);
+  } else {
+    x = rand(W * 0.5 - 160, W * 0.5 + 160);
+    y = -35;
+  }
+
+  const ang = Math.atan2(player.y - y, player.x - x);
+  const speed = 115 + GS.trenchProgress * 0.02 + rand(20, 80);
+  trenchEnemies.push({
+    x,
+    y,
+    w: 52 * ENEMY_SIZE_FACTOR,
+    h: 38 * ENEMY_SIZE_FACTOR,
+    type,
+    hp: type === 'boss' ? 3 : type === 'mid' ? 2 : 1,
+    maxHp: type === 'boss' ? 3 : type === 'mid' ? 2 : 1,
+    alive: true,
+    anim: rand(0, 6.28),
+    vx: Math.cos(ang) * speed,
+    vy: Math.sin(ang) * speed * 0.85 + 18
+  });
 }
 
 // ── DRAW: MILLENNIUM FALCON ───────────────────────────────────────────────────
@@ -1050,6 +1116,68 @@ function drawExplosion(e) {
   }
 }
 
+function drawTrenchScene() {
+  const t = Date.now() * 0.001;
+  const corridorX = W * 0.5;
+  const half = 190;
+
+  ctx.fillStyle = '#0e1016';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#151923';
+  ctx.fillRect(corridorX - half - 46, 0, 46, H);
+  ctx.fillRect(corridorX + half, 0, 46, H);
+
+  ctx.fillStyle = '#1b2130';
+  ctx.fillRect(corridorX - half, 0, half * 2, H);
+
+  ctx.strokeStyle = 'rgba(140,170,220,0.18)';
+  ctx.lineWidth = 1;
+  for (let y = ((t * 130) % 34) - 34; y < H + 34; y += 34) {
+    ctx.beginPath();
+    ctx.moveTo(corridorX - half, y);
+    ctx.lineTo(corridorX + half, y);
+    ctx.stroke();
+  }
+
+  for (let i = 0; i < 14; i++) {
+    const y = ((i * 55 + t * 90) % (H + 80)) - 40;
+    const w = 16 + (i % 3) * 8;
+    ctx.fillStyle = 'rgba(125,160,220,0.18)';
+    ctx.fillRect(corridorX - half + 20 + (i % 5) * 66, y, w, 8);
+    ctx.fillRect(corridorX + half - 36 - (i % 4) * 70, y + 15, w, 8);
+  }
+
+  ctx.strokeStyle = 'rgba(170,205,255,0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(corridorX - half, 0);
+  ctx.lineTo(corridorX - half, H);
+  ctx.moveTo(corridorX + half, 0);
+  ctx.lineTo(corridorX + half, H);
+  ctx.stroke();
+
+  if (exhaustPort && exhaustPort.active) {
+    const pulse = 0.55 + 0.45 * Math.sin(Date.now() * 0.01);
+    ctx.save();
+    ctx.translate(exhaustPort.x, exhaustPort.y);
+    ctx.fillStyle = '#0f131d';
+    ctx.fillRect(-exhaustPort.w * 0.5, -exhaustPort.h * 0.5, exhaustPort.w, exhaustPort.h);
+    ctx.strokeStyle = 'rgba(148,185,255,0.52)';
+    ctx.strokeRect(-exhaustPort.w * 0.5, -exhaustPort.h * 0.5, exhaustPort.w, exhaustPort.h);
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 92, 56, ${0.45 + pulse * 0.4})`;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#ffbb7a';
+    ctx.font = 'bold 13px "Courier New"';
+    ctx.textAlign = 'center';
+    ctx.fillText('PUNTO DEBOLE', exhaustPort.x, exhaustPort.y - 18);
+  }
+}
+
 function mkExplosion(x, y, r) {
   explosions.push({
     x, y, r, t: 0.65, T: 0.65,
@@ -1077,9 +1205,25 @@ function drawHUD() {
 
   // Wave / kills (centre)
   ctx.textAlign = 'center'; ctx.font = 'bold 16px "Courier New"'; ctx.fillStyle = '#ffcc33';
-  ctx.fillText('ONDA  ' + GS.wave, W * 0.5, 26);
+  ctx.fillText((GS.phase === 'trench' ? 'LIVELLO  2' : 'ONDA  ' + GS.wave), W * 0.5, 26);
   ctx.font = '13px "Courier New"'; ctx.fillStyle = '#ff6644';
-  ctx.fillText('NEMICI  ' + GS.waveKills + ' / ' + WAVE_SIZE, W * 0.5, 44);
+  if (GS.phase === 'trench') {
+    ctx.fillText('NEMICI ABBATTUTI  ' + GS.waveKills, W * 0.5, 44);
+  } else {
+    ctx.fillText('NEMICI  ' + GS.waveKills + ' / ' + WAVE_SIZE, W * 0.5, 44);
+  }
+
+  if (GS.phase === 'trench') {
+    const p = clamp(GS.trenchProgress / TRENCH_GOAL, 0, 1);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#9fd0ff';
+    ctx.font = '12px "Courier New"';
+    ctx.fillText('ROTA D ATTACCO ' + Math.floor(p * 100) + '%', W * 0.5, 62);
+    ctx.fillStyle = 'rgba(33,58,82,0.55)';
+    ctx.fillRect(W * 0.5 - 126, 68, 252, 7);
+    ctx.fillStyle = '#67c4ff';
+    ctx.fillRect(W * 0.5 - 126, 68, 252 * p, 7);
+  }
 
   if (GS.combo > 1 && GS.comboTimer > 0) {
     ctx.textAlign = 'center';
@@ -1260,6 +1404,32 @@ function drawOverScreen() {
   }
 }
 
+function drawVictoryScreen() {
+  ctx.fillStyle = 'rgba(0, 16, 18, 0.72)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#55fff0';
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = '#8affea';
+  ctx.font = 'bold 48px "Courier New"';
+  ctx.fillText('MISSIONE COMPIUTA', W * 0.5, H * 0.5 - 70);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#d7f7ff';
+  ctx.font = '21px "Courier New"';
+  ctx.fillText('La Morte Nera e stata distrutta!', W * 0.5, H * 0.5 - 20);
+  ctx.fillText('Punteggio finale: ' + GS.score, W * 0.5, H * 0.5 + 18);
+  if (GS.score > 0 && GS.score === GS.best) {
+    ctx.fillStyle = '#ffdd74';
+    ctx.font = 'bold 20px "Courier New"';
+    ctx.fillText('★ NUOVO RECORD ★', W * 0.5, H * 0.5 + 56);
+  }
+  if (Math.floor(Date.now() / 520) % 2) {
+    ctx.fillStyle = '#8ab4d8';
+    ctx.font = '18px "Courier New"';
+    ctx.fillText('Premi INVIO per una nuova partita', W * 0.5, H * 0.5 + 102);
+  }
+}
+
 // ── UPDATE ────────────────────────────────────────────────────────────────────
 function update(dt) {
   if (GS.mode === 'intro') {
@@ -1278,6 +1448,11 @@ function update(dt) {
   else GS.combo = 1;
   if (GS.messageTimer > 0) GS.messageTimer -= dt;
   if (GS.shake > 0) GS.shake = Math.max(0, GS.shake - dt * 2.2);
+
+  if (GS.phase === 'trench') {
+    updateTrenchRun(dt);
+    return;
+  }
 
   // ── Player movement
   let mx = 0, my = 0;
@@ -1314,11 +1489,16 @@ function update(dt) {
   // ── Enemies
   const alive = enemies.filter(e => e.alive);
   if (alive.length === 0) {
-    GS.wave++;
-    GS.waveKills = 0;
-    SFX.waveComplete();
-    setMessage('SETTORE RIPULITO', 1.3);
-    spawnWave();
+    if (GS.wave === 1) {
+      SFX.waveComplete();
+      startDeathStarRun();
+    } else {
+      GS.wave++;
+      GS.waveKills = 0;
+      SFX.waveComplete();
+      setMessage('SETTORE RIPULITO', 1.3);
+      spawnWave();
+    }
     return;
   }
 
@@ -1516,6 +1696,141 @@ function hitPlayer() {
   }
 }
 
+function updateTrenchRun(dt) {
+  // Trench movement limits keep the Falcon over the Death Star surface corridor.
+  let mx = 0, my = 0;
+  if (K.ArrowLeft)  mx -= 1;
+  if (K.ArrowRight) mx += 1;
+  if (K.ArrowUp)    my -= 1;
+  if (K.ArrowDown)  my += 1;
+  if (mx && my) { mx *= 0.707; my *= 0.707; }
+  player.x = clamp(player.x + mx * player.spd * dt, W * 0.5 - 165, W * 0.5 + 165);
+  player.y = clamp(player.y + my * player.spd * dt, 104, H - 54);
+  if (player.inv > 0) player.inv -= dt;
+  if (player.shield > 0) player.shield -= dt;
+  if (player.shot > 0) player.shot -= dt;
+
+  if (K.Space && player.shot <= 0) {
+    player.shot = 0.16;
+    SFX.shoot();
+    const by = player.y - 34;
+    bullets.push({ x: player.x - 7, y: by, vx: 0, vy: -700, l: 28, own: 'p' });
+    bullets.push({ x: player.x + 7, y: by, vx: 0, vy: -700, l: 28, own: 'p' });
+  }
+
+  GS.trenchProgress = Math.min(TRENCH_GOAL, GS.trenchProgress + dt * 170);
+
+  trenchSpawnTimer -= dt;
+  if (trenchSpawnTimer <= 0) {
+    spawnTrenchEnemy();
+    const density = 0.58 - Math.min(0.28, GS.trenchProgress / TRENCH_GOAL * 0.24);
+    trenchSpawnTimer = Math.max(0.22, density + rand(0, 0.24));
+  }
+
+  trenchShootTimer -= dt;
+  if (trenchShootTimer <= 0 && trenchEnemies.length) {
+    const shooter = trenchEnemies[Math.floor(Math.random() * trenchEnemies.length)];
+    const ang = Math.atan2(player.y - shooter.y, player.x - shooter.x);
+    const spd = 230 + GS.trenchProgress / 90;
+    eBullets.push({ x: shooter.x, y: shooter.y + 12, vx: Math.cos(ang) * spd * 0.38, vy: spd, l: 14, own: 'e' });
+    SFX.eShoot();
+    trenchShootTimer = Math.max(0.26, 0.74 - GS.trenchProgress / 9000) + rand(0, 0.22);
+  }
+
+  for (const e of trenchEnemies) {
+    if (!e.alive) continue;
+    e.anim += dt;
+    e.x += e.vx * dt;
+    e.y += e.vy * dt;
+    e.vx *= 0.998;
+    if (e.y > H + 55 || e.x < W * 0.5 - 240 || e.x > W * 0.5 + 240) {
+      e.alive = false;
+    }
+  }
+
+  bullets = bullets.filter(b => {
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    return b.y > -40 && b.y < H + 40 && b.x > W * 0.5 - 230 && b.x < W * 0.5 + 230;
+  });
+
+  eBullets = eBullets.filter(b => {
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    return b.y > -35 && b.y < H + 35 && b.x > W * 0.5 - 260 && b.x < W * 0.5 + 260;
+  });
+
+  if (GS.trenchProgress >= TRENCH_GOAL * 0.84) {
+    exhaustPort.active = true;
+    exhaustPort.x = W * 0.5 + Math.sin(Date.now() * 0.003) * 76;
+  }
+
+  outerTrench: for (const b of bullets) {
+    for (const e of trenchEnemies) {
+      if (!e.alive) continue;
+      if (rectHit(b.x, b.y, 4, 14, e.x, e.y, e.w, e.h)) {
+        b.own = 'x';
+        e.hp--;
+        if (e.hp <= 0) {
+          e.alive = false;
+          GS.waveKills++;
+          addScore(e.type === 'boss' ? 35 : e.type === 'mid' ? 20 : 12);
+          mkExplosion(e.x, e.y, e.type === 'boss' ? 46 : 30);
+          if (e.type === 'boss') SFX.explodeMedium();
+          else SFX.explodeSmall();
+        }
+        continue outerTrench;
+      }
+    }
+
+    if (exhaustPort.active && b.own !== 'x') {
+      if (rectHit(b.x, b.y, 4, 14, exhaustPort.x, exhaustPort.y, exhaustPort.w, exhaustPort.h)) {
+        b.own = 'x';
+        exhaustPort.hp--;
+        bumpShake(0.2);
+        if (exhaustPort.hp <= 0) {
+          mkExplosion(exhaustPort.x, exhaustPort.y - 18, 140);
+          SFX.explodeBig();
+          setMessage('COLPO PERFETTO! MORTE NERA DISTRUTTA', 4);
+          GS.mode = 'victory';
+          stopBattleMusic();
+          if (GS.score > GS.best) {
+            GS.best = GS.score;
+            saveBest(GS.best);
+          }
+        }
+      }
+    }
+  }
+  bullets = bullets.filter(b => b.own !== 'x');
+
+  trenchEnemies = trenchEnemies.filter(e => e.alive);
+
+  explosions = explosions.filter(e => { e.t -= dt; return e.t > 0; });
+
+  if (player.inv > 0 || player.shield > 0) return;
+
+  for (const b of eBullets) {
+    if (rectHit(b.x, b.y, 5, 5, player.x, player.y, 62, 44)) {
+      b.own = 'x';
+      hitPlayer();
+      break;
+    }
+  }
+  eBullets = eBullets.filter(b => b.own !== 'x');
+
+  for (const e of trenchEnemies) {
+    if (!e.alive) continue;
+    if (rectHit(e.x, e.y, e.w, e.h, player.x, player.y, 64, 46)) {
+      e.alive = false;
+      mkExplosion(e.x, e.y, 34);
+      SFX.explodeSmall();
+      hitPlayer();
+      break;
+    }
+  }
+}
+
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function renderScene() {
   ctx.save();
@@ -1523,13 +1838,23 @@ function renderScene() {
     const amp = GS.shake * 8;
     ctx.translate(rand(-amp, amp), rand(-amp, amp));
   }
+  if (GS.phase === 'trench') {
+    drawTrenchScene();
+  }
   for (const e of explosions) drawExplosion(e);
-  for (const a of asteroids) drawAsteroid(a);
-  if (mothership) drawMothership(mothership);
-  for (const e of enemies) {
-    if (!e.alive) continue;
-    if (e.type === 'vader') drawDarkVader(e.x, e.y, e.anim, e.hp, e.maxHp, e.w);
-    else drawTIE(e.x, e.y, e.type, e.anim, e.hp, e.maxHp);
+  if (GS.phase === 'space') {
+    for (const a of asteroids) drawAsteroid(a);
+    if (mothership) drawMothership(mothership);
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (e.type === 'vader') drawDarkVader(e.x, e.y, e.anim, e.hp, e.maxHp, e.w);
+      else drawTIE(e.x, e.y, e.type, e.anim, e.hp, e.maxHp);
+    }
+  } else {
+    for (const e of trenchEnemies) {
+      if (!e.alive) continue;
+      drawTIE(e.x, e.y, e.type, e.anim, e.hp, e.maxHp);
+    }
   }
   for (const b of bullets)  drawBullet(b);
   for (const b of eBullets) drawBullet(b);
@@ -1562,6 +1887,7 @@ function render() {
 
   if (GS.mode === 'menu') { drawMenu(); return; }
   if (GS.mode === 'intro') { drawIntroCrawl(); return; }
+  if (GS.mode === 'victory') { renderScene(); drawHUD(); drawVictoryScreen(); return; }
   if (GS.mode === 'over') { renderScene(); drawHUD(); drawOverScreen(); return; }
   if (GS.mode === 'pause') { renderScene(); drawHUD(); drawStatusBanner(); drawPauseScreen(); return; }
 
@@ -1578,7 +1904,7 @@ function loop(ts) {
 
   // Global input handling
   if (KP.Enter || KP.NumpadEnter) {
-    if (GS.mode === 'menu' || GS.mode === 'over') {
+    if (GS.mode === 'menu' || GS.mode === 'over' || GS.mode === 'victory') {
       if (GS.mode === 'menu') startIntro();
       else startGame();
     } else if (GS.mode === 'pause') {
@@ -1587,9 +1913,9 @@ function loop(ts) {
       startGame();
     }
   }
-  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro')) {
+  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro' || GS.mode === 'victory')) {
     if (GS.mode === 'intro') stopIntroMusic();
-    if (GS.mode === 'play' || GS.mode === 'pause') stopBattleMusic();
+    if (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'victory') stopBattleMusic();
     GS.mode = 'menu';
   }
   if (KP.KeyP) {
