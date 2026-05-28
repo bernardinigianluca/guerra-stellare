@@ -122,6 +122,7 @@ Comportamento:
 - `ensureAudio()` crea `AudioContext` e master gain on demand.
 - `M` toggla `muted` e sincronizza gain + mute delle tracce.
 - Intro usa fallback synth se il browser blocca autoplay della traccia.
+- Negli ultimi secondi del briefing intro la traccia `star-wars.mp3` applica un crescendo progressivo prima della transizione al gioco.
 
 ## 10. Rendering e performance
 - Canvas fisso: `820x660`, ridimensionamento visuale via `syncViewport()`.
@@ -149,7 +150,7 @@ Entrambe gestiscono errori in modo safe (es. limiti modalita file locale).
 - `WAVE_SIZE = 30`
 - `ENEMY_SIZE_FACTOR = 0.55`
 - `SHIELD_DURATION = 10`
-- `INTRO_DURATION = 19`
+- `INTRO_DURATION = 26`
 - `TRENCH_GOAL = 3600`
 
 ## 13. Funzioni chiave (mappa rapida)
