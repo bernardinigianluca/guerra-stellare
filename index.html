@@ -207,6 +207,10 @@ const battleTrack = new Audio('star-wars-battlie.mp3');
 battleTrack.preload = 'auto';
 battleTrack.loop = true;
 battleTrack.volume = 0.48;
+const lukeAssistTrack = new Audio('star-wars-battlie3.mp3');
+lukeAssistTrack.preload = 'auto';
+lukeAssistTrack.loop = true;
+lukeAssistTrack.volume = 0.44;
 const falconShootTrack = new Audio('star-wars-battlie2.mp3');
 falconShootTrack.preload = 'auto';
 falconShootTrack.volume = 0.46;
@@ -342,6 +346,8 @@ function stopIntroMusic() {
 }
 
 function stopBattleMusic() {
+  lukeAssistTrack.pause();
+  lukeAssistTrack.currentTime = 0;
   battleTrack.pause();
   battleTrack.currentTime = 0;
   stopMusic();
@@ -349,9 +355,20 @@ function stopBattleMusic() {
 
 function startBattleMusic() {
   stopMusic();
+  lukeAssistTrack.pause();
+  lukeAssistTrack.currentTime = 0;
   battleTrack.muted = muted;
   battleTrack.play().catch(() => {
     // In battle we want only the provided MP3 as background music.
+  });
+}
+
+function startLukeAssistMusic() {
+  battleTrack.pause();
+  lukeAssistTrack.muted = muted;
+  lukeAssistTrack.currentTime = 0;
+  lukeAssistTrack.play().catch(() => {
+    // Ignore playback failures caused by autoplay policies.
   });
 }
 
@@ -500,6 +517,7 @@ let player, bullets, eBullets, enemies, mothership, explosions, asteroids;
 let eGroup, motherTimer;
 let trenchEnemies, trenchSpawnTimer, trenchShootTimer, exhaustPort;
 let cinematicState;
+let lukeWing;
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
@@ -525,6 +543,18 @@ function init() {
     blockHintCd: 0
   };
   cinematicState = null;
+  lukeWing = {
+    active: false,
+    entered: false,
+    x: -90,
+    y: H * 0.68,
+    vx: 0,
+    vy: 0,
+    shot: 0,
+    enterDelay: 6.2,
+    targetLock: null,
+    spark: 0
+  };
   mothership = null; motherTimer = 18 + rand(0, 8);
   spawnWave();
 }
@@ -617,6 +647,16 @@ function startDeathStarRun() {
   exhaustPort.cycle = 0;
   exhaustPort.blockHintCd = 0;
   cinematicState = null;
+  lukeWing.active = false;
+  lukeWing.entered = false;
+  lukeWing.x = -90;
+  lukeWing.y = H * 0.66;
+  lukeWing.vx = 0;
+  lukeWing.vy = 0;
+  lukeWing.shot = 0.9;
+  lukeWing.enterDelay = 6.2;
+  lukeWing.targetLock = null;
+  lukeWing.spark = 0;
   setMessage('LIVELLO 2: TRINCEA DELLA MORTE NERA', 3.2);
 }
 
@@ -686,6 +726,12 @@ function updateCinematic(dt) {
 
   GS.trenchProgress = TRENCH_GOAL;
   GS.shake = Math.max(GS.shake, 0.35 + escapeT * 0.85);
+  if (lukeWing && lukeWing.active) {
+    const wingX = player.x - 62;
+    const wingY = player.y + 16;
+    lukeWing.x += (wingX - lukeWing.x) * Math.min(1, dt * 4.2);
+    lukeWing.y += (wingY - lukeWing.y) * Math.min(1, dt * 4.2);
+  }
 
   cinematicState.nextBoom -= dt;
   if (cinematicState.nextBoom <= 0) {
@@ -706,6 +752,115 @@ function updateCinematic(dt) {
       GS.best = GS.score;
       saveBest(GS.best);
     }
+  }
+}
+
+function drawLukeWing(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(0.74, 0.74);
+
+  const pulse = 0.62 + 0.38 * Math.sin(Date.now() * 0.012);
+  ctx.beginPath();
+  ctx.ellipse(0, 11, 19, 8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(102, 174, 255, ${0.25 + pulse * 0.22})`;
+  ctx.fill();
+
+  ctx.fillStyle = '#d8dde8';
+  ctx.beginPath();
+  ctx.moveTo(0, -22);
+  ctx.lineTo(-8, 8);
+  ctx.lineTo(8, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#c5ccd8';
+  ctx.fillRect(-18, -6, 36, 7);
+  ctx.fillStyle = '#aa3030';
+  ctx.fillRect(-17, -6, 8, 2);
+  ctx.fillRect(9, -6, 8, 2);
+
+  ctx.fillStyle = '#cfd6e2';
+  ctx.beginPath();
+  ctx.moveTo(-22, 10);
+  ctx.lineTo(-12, -4);
+  ctx.lineTo(-4, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(22, 10);
+  ctx.lineTo(12, -4);
+  ctx.lineTo(4, 10);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#88b7ff';
+  ctx.fillRect(-9, 8, 4, 6);
+  ctx.fillRect(5, 8, 4, 6);
+
+  ctx.restore();
+}
+
+function updateLukeWingAI(dt) {
+  if (!lukeWing) return;
+
+  if (!lukeWing.entered) {
+    lukeWing.enterDelay -= dt;
+    if (lukeWing.enterDelay <= 0) {
+      lukeWing.entered = true;
+      lukeWing.active = true;
+      lukeWing.x = -80;
+      lukeWing.y = H * 0.67;
+      setMessage('LUKE IN ARRIVO: COPERTURA X-WING!', 2.6);
+      startLukeAssistMusic();
+    }
+    return;
+  }
+  if (!lukeWing.active) return;
+
+  let targetEnemy = null;
+  let targetDist = Infinity;
+  for (const e of trenchEnemies) {
+    if (!e.alive) continue;
+    const d = dist2(lukeWing.x, lukeWing.y, e.x, e.y);
+    if (d < targetDist) {
+      targetDist = d;
+      targetEnemy = e;
+    }
+  }
+
+  const fallbackX = player.x - 62;
+  const fallbackY = player.y + 16;
+  const desiredX = targetEnemy ? clamp(targetEnemy.x - 30, W * 0.5 - 175, W * 0.5 + 175) : fallbackX;
+  const desiredY = targetEnemy ? clamp(targetEnemy.y + 60, 112, H - 70) : fallbackY;
+
+  const steer = 5.1;
+  lukeWing.vx += (desiredX - lukeWing.x) * steer * dt;
+  lukeWing.vy += (desiredY - lukeWing.y) * steer * dt;
+  lukeWing.vx *= 0.88;
+  lukeWing.vy *= 0.88;
+  const maxSpd = 265;
+  lukeWing.vx = clamp(lukeWing.vx, -maxSpd, maxSpd);
+  lukeWing.vy = clamp(lukeWing.vy, -maxSpd, maxSpd);
+  lukeWing.x = clamp(lukeWing.x + lukeWing.vx * dt, W * 0.5 - 186, W * 0.5 + 186);
+  lukeWing.y = clamp(lukeWing.y + lukeWing.vy * dt, 96, H - 46);
+
+  if (lukeWing.shot > 0) lukeWing.shot -= dt;
+  if (lukeWing.shot <= 0) {
+    let tx = player.x;
+    let ty = 80;
+    if (targetEnemy) {
+      tx = targetEnemy.x;
+      ty = targetEnemy.y;
+    } else if (exhaustPort.active && exhaustPort.open) {
+      tx = exhaustPort.x;
+      ty = exhaustPort.y;
+    }
+    const ang = Math.atan2(ty - lukeWing.y, tx - lukeWing.x);
+    const spd = 640;
+    bullets.push({ x: lukeWing.x - 5, y: lukeWing.y - 20, vx: Math.cos(ang) * spd * 0.15, vy: Math.sin(ang) * spd, l: 18, own: 'ally' });
+    bullets.push({ x: lukeWing.x + 5, y: lukeWing.y - 20, vx: Math.cos(ang) * spd * 0.15, vy: Math.sin(ang) * spd, l: 18, own: 'ally' });
+    lukeWing.shot = targetEnemy ? 0.26 : 0.34;
   }
 }
 
@@ -1153,24 +1308,26 @@ function drawBullet(b) {
   ctx.save();
   ctx.translate(b.x, b.y);
   const isP = b.own === 'p';
-  const c0 = isP ? 'rgba(120,255,220,0)' : 'rgba(255,70,20,0)';
-  const c1 = isP ? '#8bffe8' : '#ff6622';
+  const isAlly = b.own === 'ally';
+  const c0 = isP ? 'rgba(120,255,220,0)' : isAlly ? 'rgba(150,190,255,0)' : 'rgba(255,70,20,0)';
+  const c1 = isP ? '#8bffe8' : isAlly ? '#8cbcff' : '#ff6622';
   const g = ctx.createLinearGradient(0, -b.l * 0.5, 0, b.l * 0.5);
   g.addColorStop(0, c0); g.addColorStop(0.45, c1); g.addColorStop(1, c0);
-  if (isP) {
+  if (isP || isAlly) {
     ctx.shadowColor = 'rgba(115,255,235,0.95)';
-    ctx.shadowBlur = 16;
+    if (isAlly) ctx.shadowColor = 'rgba(130,180,255,0.95)';
+    ctx.shadowBlur = isAlly ? 13 : 16;
     ctx.fillStyle = g;
-    ctx.fillRect(-2.8, -b.l * 0.5, 5.6, b.l);
+    ctx.fillRect(isAlly ? -2.2 : -2.8, -b.l * 0.5, isAlly ? 4.4 : 5.6, b.l);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(225,255,245,0.98)';
-    ctx.fillRect(-0.95, -b.l * 0.5, 1.9, b.l);
+    ctx.fillStyle = isAlly ? 'rgba(230,238,255,0.98)' : 'rgba(225,255,245,0.98)';
+    ctx.fillRect(isAlly ? -0.75 : -0.95, -b.l * 0.5, isAlly ? 1.5 : 1.9, b.l);
   } else {
     ctx.fillStyle = g;
     ctx.fillRect(-1.8, -b.l * 0.5, 3.6, b.l);
   }
-  ctx.beginPath(); ctx.arc(0, 0, isP ? 3.2 : 2.5, 0, Math.PI * 2);
-  ctx.fillStyle = isP ? 'rgba(215,255,240,0.96)' : 'rgba(255,150,80,0.85)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, isP ? 3.2 : isAlly ? 2.7 : 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = isP ? 'rgba(215,255,240,0.96)' : isAlly ? 'rgba(205,224,255,0.95)' : 'rgba(255,150,80,0.85)'; ctx.fill();
   ctx.restore();
 }
 
@@ -1834,6 +1991,8 @@ function updateTrenchRun(dt) {
     bullets.push({ x: player.x + 7, y: by, vx: 0, vy: -700, l: 28, own: 'p' });
   }
 
+  updateLukeWingAI(dt);
+
   GS.trenchProgress = Math.min(TRENCH_GOAL, GS.trenchProgress + dt * 170);
 
   trenchSpawnTimer -= dt;
@@ -1950,6 +2109,7 @@ function updateTrenchRun(dt) {
   if (player.inv > 0 || player.shield > 0) return;
 
   for (const b of eBullets) {
+    if (b.own === 'x') continue;
     if (rectHit(b.x, b.y, 5, 5, player.x, player.y, 62, 44)) {
       b.own = 'x';
       hitPlayer();
@@ -1967,6 +2127,20 @@ function updateTrenchRun(dt) {
       hitPlayer();
       break;
     }
+  }
+
+  if (lukeWing && lukeWing.active) {
+    for (const b of eBullets) {
+      if (b.own === 'x') continue;
+      if (rectHit(b.x, b.y, 5, 5, lukeWing.x, lukeWing.y, 36, 26)) {
+        b.own = 'x';
+        lukeWing.spark = 0.34;
+        mkExplosion(lukeWing.x, lukeWing.y, 16);
+        setMessage('LUKE: STO BENE, CONTINUA!', 1.0);
+        break;
+      }
+    }
+    eBullets = eBullets.filter(b => b.own !== 'x');
   }
 }
 
@@ -1993,6 +2167,17 @@ function renderScene() {
     for (const e of trenchEnemies) {
       if (!e.alive) continue;
       drawTIE(e.x, e.y, e.type, e.anim, e.hp, e.maxHp);
+    }
+    if (lukeWing && (lukeWing.active || lukeWing.entered)) {
+      drawLukeWing(lukeWing.x, lukeWing.y);
+      if (lukeWing.spark > 0) {
+        lukeWing.spark = Math.max(0, lukeWing.spark - 0.016);
+        ctx.beginPath();
+        ctx.arc(lukeWing.x, lukeWing.y, 22, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(130,190,255,${lukeWing.spark})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
   }
   for (const b of bullets)  drawBullet(b);
@@ -2067,6 +2252,7 @@ function loop(ts) {
     if (masterGain) masterGain.gain.value = muted ? 0 : 0.55;
     introTrack.muted = muted;
     battleTrack.muted = muted;
+    lukeAssistTrack.muted = muted;
     falconShootTrack.muted = muted;
   }
 

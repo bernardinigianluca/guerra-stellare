@@ -29,6 +29,7 @@ Nota: il progetto e pensato per funzionare anche in modalita file locale (`file:
   - `star-wars.mp3` (traccia intro)
   - `star-wars-battlie.mp3` (musica battaglia)
   - `star-wars-battlie2.mp3` (SFX sparo Falcon)
+  - `star-wars-battlie3.mp3` (musica ingresso Luke nel livello 2)
   - altri mp3 presenti ma non agganciati alla logica attuale
 
 ## 4. Controlli
@@ -80,6 +81,8 @@ Transizioni principali:
   - Livello 1: battaglia spaziale classica (formazioni + minaccia nodriza)
   - Livello 2: Death Star Run nella trincea con spawn nemici da lati/alto
 - In livello 2 il Falcon resta nella corsia della trincea e deve avanzare fino al punto debole.
+  - Dopo alcuni secondi entra la nave di Luke (piu piccola del Falcon), guidata da IA.
+  - La nave IA si muove in autonomia, ingaggia bersagli e aiuta a ripulire i nemici (e il punto debole quando aperto).
   - A fine avanzamento compare il punto debole (`exhaust port`) da colpire piu volte.
   - Il punto debole alterna finestre `aperto/chiuso`: i colpi entrano solo quando e aperto.
   - Nemici livello 2 differenziati:
@@ -124,6 +127,7 @@ Comportamento:
 - Intro usa fallback synth se il browser blocca autoplay della traccia.
 - Negli ultimi secondi del briefing intro la traccia `star-wars.mp3` applica un crescendo progressivo prima della transizione al gioco.
 - Negli ultimissimi 2 secondi l intro applica anche un boost piu aggressivo del volume per un finale piu epico.
+- All ingresso della nave di Luke nel livello 2 parte `star-wars-battlie3.mp3`.
 
 ## 10. Rendering e performance
 - Canvas fisso: `820x660`, ridimensionamento visuale via `syncViewport()`.
@@ -159,6 +163,7 @@ Entrambe gestiscono errori in modo safe (es. limiti modalita file locale).
 - Audio: `ensureAudio()`, `startIntroMusic()`, `startBattleMusic()`, `stopIntroMusic()`, `stopBattleMusic()`
 - Stato gioco: `init()`, `startIntro()`, `startGame()`, `spawnWave()`, `update(dt)`, `hitPlayer()`
 - Stato livello 2: `startDeathStarRun()`, `spawnTrenchEnemy()`, `updateTrenchRun(dt)`
+- Supporto alleato: `updateLukeWingAI(dt)`, `drawLukeWing(x, y)`
 - Cinematica finale: `startDeathStarEscapeCinematic()`, `updateCinematic(dt)`
 - Rendering: `render()`, `renderScene()`, `drawTrenchScene()`, `drawHUD()`, `drawMenu()`, `drawIntroCrawl()`, `drawOverScreen()`, `drawVictoryScreen()`
 - Main loop: `loop(ts)`
