@@ -172,6 +172,11 @@ let vaderSpriteReady = false;
 vaderSprite.onload = () => { vaderSpriteReady = true; };
 vaderSprite.src = 'caza_dark_vater.png';
 
+const lukeSprite = new Image();
+let lukeSpriteReady = false;
+lukeSprite.onload = () => { lukeSpriteReady = true; };
+lukeSprite.src = 'caza_luke.png';
+
 const BEST_KEY = 'guerra-stellare-best';
 
 function loadBest() {
@@ -765,7 +770,6 @@ function updateCinematic(dt) {
 function drawLukeWing(x, y) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(0.74, 0.74);
 
   const pulse = 0.62 + 0.38 * Math.sin(Date.now() * 0.012);
   ctx.beginPath();
@@ -773,37 +777,48 @@ function drawLukeWing(x, y) {
   ctx.fillStyle = `rgba(102, 174, 255, ${0.25 + pulse * 0.22})`;
   ctx.fill();
 
-  ctx.fillStyle = '#d8dde8';
-  ctx.beginPath();
-  ctx.moveTo(0, -22);
-  ctx.lineTo(-8, 8);
-  ctx.lineTo(8, 8);
-  ctx.closePath();
-  ctx.fill();
+  if (lukeSpriteReady) {
+    const scale = 0.082;
+    const w = lukeSprite.width * scale;
+    const h = lukeSprite.height * scale;
+    ctx.shadowColor = 'rgba(140, 192, 255, 0.42)';
+    ctx.shadowBlur = 10;
+    ctx.drawImage(lukeSprite, -w * 0.5, -h * 0.52, w, h);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.scale(0.74, 0.74);
+    ctx.fillStyle = '#d8dde8';
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.lineTo(-8, 8);
+    ctx.lineTo(8, 8);
+    ctx.closePath();
+    ctx.fill();
 
-  ctx.fillStyle = '#c5ccd8';
-  ctx.fillRect(-18, -6, 36, 7);
-  ctx.fillStyle = '#aa3030';
-  ctx.fillRect(-17, -6, 8, 2);
-  ctx.fillRect(9, -6, 8, 2);
+    ctx.fillStyle = '#c5ccd8';
+    ctx.fillRect(-18, -6, 36, 7);
+    ctx.fillStyle = '#aa3030';
+    ctx.fillRect(-17, -6, 8, 2);
+    ctx.fillRect(9, -6, 8, 2);
 
-  ctx.fillStyle = '#cfd6e2';
-  ctx.beginPath();
-  ctx.moveTo(-22, 10);
-  ctx.lineTo(-12, -4);
-  ctx.lineTo(-4, 10);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(22, 10);
-  ctx.lineTo(12, -4);
-  ctx.lineTo(4, 10);
-  ctx.closePath();
-  ctx.fill();
+    ctx.fillStyle = '#cfd6e2';
+    ctx.beginPath();
+    ctx.moveTo(-22, 10);
+    ctx.lineTo(-12, -4);
+    ctx.lineTo(-4, 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(22, 10);
+    ctx.lineTo(12, -4);
+    ctx.lineTo(4, 10);
+    ctx.closePath();
+    ctx.fill();
 
-  ctx.fillStyle = '#88b7ff';
-  ctx.fillRect(-9, 8, 4, 6);
-  ctx.fillRect(5, 8, 4, 6);
+    ctx.fillStyle = '#88b7ff';
+    ctx.fillRect(-9, 8, 4, 6);
+    ctx.fillRect(5, 8, 4, 6);
+  }
 
   ctx.restore();
 }

@@ -26,6 +26,7 @@ Nota: il progetto e pensato per funzionare anche in modalita file locale (`file:
   - `falcon_millenian.png` (sprite player)
   - `tie_fighter.png` (sprite nemici)
   - `caza_dark_vater.png` (sprite mini-boss Vader)
+  - `caza_luke.png` (sprite nave alleata di Luke nel livello 2)
   - `star-wars.mp3` (traccia intro)
   - `star-wars-battlie.mp3` (musica battaglia)
   - `star-wars-battlie2.mp3` (SFX sparo Falcon)
