@@ -204,10 +204,15 @@ battleTrack.loop = true;
 battleTrack.volume = 0.48;
 const falconShootTrack = new Audio('star-wars-battlie2.mp3');
 falconShootTrack.preload = 'auto';
-falconShootTrack.volume = 0.34;
+falconShootTrack.volume = 0.46;
+const FALCON_SHOOT_SFX_COOLDOWN = 95;
+let lastFalconShootSfxAt = -Infinity;
 
 function playFalconShootSfx() {
   if (muted) return;
+  const now = performance.now();
+  if (now - lastFalconShootSfxAt < FALCON_SHOOT_SFX_COOLDOWN) return;
+  lastFalconShootSfxAt = now;
   const shot = falconShootTrack.cloneNode();
   shot.volume = falconShootTrack.volume;
   shot.muted = muted;
