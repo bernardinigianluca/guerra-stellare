@@ -487,7 +487,7 @@ for (const btn of touchUI.querySelectorAll('[data-key]')) {
 const GS = {
   mode: 'menu', score: 0, best: loadBest(), lives: 3, wave: 1, waveKills: 0,
   combo: 1, comboTimer: 0, message: '', messageTimer: 0, shake: 0, introTime: 0, introCueDone: false,
-  phase: 'space', trenchProgress: 0
+  phase: 'space', trenchProgress: 0, difficulty: 'normal'
 };
 const WAVE_SIZE = 30;
 const ENEMY_SIZE_FACTOR = 0.55;
@@ -495,6 +495,51 @@ const MAX_LIVES = 6;
 const SHIELD_DURATION = 10;
 const INTRO_DURATION = 40;
 const TRENCH_GOAL = 3600;
+const DIFFICULTY_PRESETS = {
+  easy: {
+    label: 'FACILE',
+    enemySpeedMult: 0.82,
+    enemyShootIntervalMult: 1.22,
+    enemyHpMult: 0.85,
+    enemyBulletSpeedMult: 0.9,
+    enemyDiveChanceMult: 0.75,
+    enemyDiveSpeedMult: 0.88,
+    trenchSpawnIntervalMult: 1.22,
+    trenchProgressRateMult: 1.08,
+    playerShotCooldownMult: 0.9,
+    playerBulletSpeedMult: 1.08
+  },
+  normal: {
+    label: 'NORMALE',
+    enemySpeedMult: 1,
+    enemyShootIntervalMult: 1,
+    enemyHpMult: 1,
+    enemyBulletSpeedMult: 1,
+    enemyDiveChanceMult: 1,
+    enemyDiveSpeedMult: 1,
+    trenchSpawnIntervalMult: 1,
+    trenchProgressRateMult: 1,
+    playerShotCooldownMult: 1,
+    playerBulletSpeedMult: 1
+  },
+  hard: {
+    label: 'DIFFICILE',
+    enemySpeedMult: 1.24,
+    enemyShootIntervalMult: 0.8,
+    enemyHpMult: 1.3,
+    enemyBulletSpeedMult: 1.2,
+    enemyDiveChanceMult: 1.35,
+    enemyDiveSpeedMult: 1.22,
+    trenchSpawnIntervalMult: 0.78,
+    trenchProgressRateMult: 0.92,
+    playerShotCooldownMult: 1.08,
+    playerBulletSpeedMult: 0.95
+  }
+};
+
+function getDifficulty() {
+  return DIFFICULTY_PRESETS[GS.difficulty] || DIFFICULTY_PRESETS.normal;
+}
 const INTRO_CRAWL = [
   'EPISODIO UNO',
   '',
@@ -600,12 +645,17 @@ function addScore(base) {
 }
 
 function spawnWave() {
+  const diff = getDifficulty();
   enemies = [];
-  eGroup = { dx: 1, speed: 40 + GS.wave * 10, shoot: 1.4 };
+  eGroup = {
+    dx: 1,
+    speed: (40 + GS.wave * 10) * diff.enemySpeedMult,
+    shoot: 1.4 * diff.enemyShootIntervalMult
+  };
   setMessage('ONDA ' + GS.wave, 1.8);
 
   const vaderSlot = { x: W * 0.5, y: 38 };
-  const vaderHp = 10 + Math.floor(GS.wave * 1.5);
+  const vaderHp = Math.max(6, Math.round((10 + Math.floor(GS.wave * 1.5)) * diff.enemyHpMult));
 
   enemies.push({
     x: vaderSlot.x, y: vaderSlot.y,
@@ -621,12 +671,14 @@ function spawnWave() {
       const x = 115 + c * 98;
       const y = 75 + r * 66;
       const type = r === 0 ? 'boss' : r < 3 ? 'mid' : 'basic';
+      const baseHp = type === 'boss' ? 3 : 1;
+      const tunedHp = Math.max(1, Math.round(baseHp * diff.enemyHpMult));
       enemies.push({
         x, y,
         bx: x, by: y,
         w: 52 * ENEMY_SIZE_FACTOR, h: 38 * ENEMY_SIZE_FACTOR, type,
-        hp: type === 'boss' ? 3 : 1,
-        maxHp: type === 'boss' ? 3 : 1,
+        hp: tunedHp,
+        maxHp: tunedHp,
         alive: true, anim: rand(0, 6.28), dive: null
       });
     }
@@ -634,6 +686,7 @@ function spawnWave() {
 }
 
 function startDeathStarRun() {
+  const diff = getDifficulty();
   GS.phase = 'trench';
   GS.wave = 2;
   GS.waveKills = 0;
@@ -646,8 +699,8 @@ function startDeathStarRun() {
   eBullets = [];
   trenchEnemies = [];
   trenchEnemyIdCounter = 1;
-  trenchSpawnTimer = 0.55;
-  trenchShootTimer = 0.8;
+  trenchSpawnTimer = 0.55 * diff.trenchSpawnIntervalMult;
+  trenchShootTimer = 0.8 * diff.enemyShootIntervalMult;
   player.x = W * 0.5;
   player.y = H * 0.72;
   player.inv = 1.8;
@@ -674,6 +727,7 @@ function startDeathStarRun() {
 }
 
 function spawnTrenchEnemy() {
+  const diff = getDifficulty();
   const side = Math.floor(Math.random() * 3);
   const typeRoll = Math.random();
   const kind = typeRoll < 0.5 ? 'interceptor' : typeRoll < 0.85 ? 'turret' : 'bomber';
@@ -694,7 +748,9 @@ function spawnTrenchEnemy() {
 
   const ang = Math.atan2(player.y - y, player.x - x);
   const speedBase = kind === 'interceptor' ? 210 : kind === 'bomber' ? 125 : 155;
-  const speed = speedBase + GS.trenchProgress * 0.02 + rand(16, 62);
+  const speed = (speedBase + GS.trenchProgress * 0.02 + rand(16, 62)) * diff.enemySpeedMult;
+  const baseHp = kind === 'bomber' ? 4 : kind === 'interceptor' ? 2 : 1;
+  const tunedHp = Math.max(1, Math.round(baseHp * diff.enemyHpMult));
   trenchEnemies.push({
     id: trenchEnemyIdCounter++,
     x,
@@ -703,8 +759,8 @@ function spawnTrenchEnemy() {
     h: 38 * ENEMY_SIZE_FACTOR,
     type,
     kind,
-    hp: kind === 'bomber' ? 4 : kind === 'interceptor' ? 2 : 1,
-    maxHp: kind === 'bomber' ? 4 : kind === 'interceptor' ? 2 : 1,
+    hp: tunedHp,
+    maxHp: tunedHp,
     alive: true,
     anim: rand(0, 6.28),
     seed: rand(0, 6.28),
@@ -1514,6 +1570,7 @@ function mkExplosion(x, y, r) {
 
 // ── DRAW: HUD ────────────────────────────────────────────────────────────────
 function drawHUD() {
+  const diff = getDifficulty();
   ctx.fillStyle = 'rgba(8,12,28,0.42)';
   ctx.fillRect(10, 10, W - 20, 42);
   ctx.strokeStyle = 'rgba(110,150,255,0.1)';
@@ -1585,6 +1642,8 @@ function drawHUD() {
   ctx.textAlign = 'left'; ctx.font = '11px "Courier New"';
   ctx.fillStyle = muted ? '#ff5533' : '#334455';
   ctx.fillText(muted ? '[M] MUTO' : '[M] SUONO', 14, H - 8);
+  ctx.fillStyle = '#5a7398';
+  ctx.fillText('DIFF: ' + diff.label, 14, H - 24);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#51627d';
   ctx.fillText('[P] PAUSA', W - 14, H - 8);
@@ -1616,6 +1675,7 @@ function drawStatusBanner() {
 
 // ── SCREENS ───────────────────────────────────────────────────────────────────
 function drawMenu() {
+  const diff = getDifficulty();
   ctx.fillStyle = 'rgba(6, 9, 20, 0.38)';
   ctx.fillRect(62, 82, W - 124, H - 164);
   ctx.strokeStyle = 'rgba(137, 176, 255, 0.16)';
@@ -1640,17 +1700,21 @@ function drawMenu() {
   ctx.fillText('BARRA SPAZIATRICE   →  spara', W * 0.5, 468);
   ctx.fillText('P   →  pausa', W * 0.5, 488);
   ctx.fillText('M   →  muto / suono     ESC  →  menu', W * 0.5, 508);
-  ctx.fillText('TOUCH  →  controlli su schermo su mobile', W * 0.5, 528);
+  ctx.fillText('1 FACILE   2 NORMALE   3 DIFFICILE', W * 0.5, 528);
+  ctx.fillStyle = '#8fb8ff'; ctx.font = 'bold 16px "Courier New"';
+  ctx.fillText('DIFFICOLTA ATTUALE: ' + diff.label, W * 0.5, 548);
+  ctx.fillStyle = '#4a6070'; ctx.font = '15px "Courier New"';
+  ctx.fillText('TOUCH  →  controlli su schermo su mobile', W * 0.5, 568);
 
   // Blink prompt
   if (Math.floor(Date.now() / 540) % 2) {
     ctx.fillStyle = '#ffdd44'; ctx.font = 'bold 21px "Courier New"';
-    ctx.fillText('▸   PREMI  INVIO  PER  BRIEFING   ◂', W * 0.5, 568);
+    ctx.fillText('▸   PREMI  INVIO  PER  BRIEFING   ◂', W * 0.5, 596);
   }
 
   ctx.fillStyle = '#385050'; ctx.font = '13px "Courier New"';
-  ctx.fillText('Distruggi la Nave Nodriza per guadagnare una vita extra!', W * 0.5, 592);
-  ctx.fillText('Attenzione agli asteroidi!', W * 0.5, 612);
+  ctx.fillText('Distruggi la Nave Nodriza per guadagnare una vita extra!', W * 0.5, 618);
+  ctx.fillText('Attenzione agli asteroidi!', W * 0.5, 638);
 }
 
 function drawIntroCrawl() {
@@ -1800,6 +1864,8 @@ function update(dt) {
 
   if (GS.mode !== 'play') return;
 
+  const diff = getDifficulty();
+
   if (GS.comboTimer > 0) GS.comboTimer -= dt;
   else GS.combo = 1;
   if (GS.messageTimer > 0) GS.messageTimer -= dt;
@@ -1825,11 +1891,12 @@ function update(dt) {
 
   // ── Shoot
   if (K.Space && player.shot <= 0) {
-    player.shot = 0.17;
+    player.shot = 0.17 * diff.playerShotCooldownMult;
     SFX.shoot();
     const by = player.y - 30;
-    bullets.push({ x: player.x - 7, y: by, vx: 0, vy: -680, l: 26, own: 'p' });
-    bullets.push({ x: player.x + 7, y: by, vx: 0, vy: -680, l: 26, own: 'p' });
+    const bulletVy = -680 * diff.playerBulletSpeedMult;
+    bullets.push({ x: player.x - 7, y: by, vx: 0, vy: bulletVy, l: 26, own: 'p' });
+    bullets.push({ x: player.x + 7, y: by, vx: 0, vy: bulletVy, l: 26, own: 'p' });
   }
 
   // ── Move bullets
@@ -1905,20 +1972,20 @@ function update(dt) {
     if (shooters.length) {
       const s = shooters[Math.floor(Math.random() * shooters.length)];
       const ang = Math.atan2(player.y - s.y, player.x - s.x);
-      const spd = 195 + GS.wave * 18;
+      const spd = (195 + GS.wave * 18) * diff.enemyBulletSpeedMult;
       SFX.eShoot();
       eBullets.push({ x: s.x, y: s.y + 14, vx: Math.cos(ang) * spd * 0.32, vy: spd, l: 13, own: 'e' });
     }
-    eGroup.shoot = Math.max(0.32, 1.3 - GS.wave * 0.08) + rand(0, 0.38);
+    eGroup.shoot = (Math.max(0.32, 1.3 - GS.wave * 0.08) + rand(0, 0.38)) * diff.enemyShootIntervalMult;
   }
 
   // ── Random dive attack
-  if (Math.random() < 0.006 * speedMult) {
+  if (Math.random() < 0.006 * speedMult * diff.enemyDiveChanceMult) {
     const nonDiving = alive.filter(e => !e.dive);
     if (nonDiving.length) {
       const d = nonDiving[Math.floor(Math.random() * nonDiving.length)];
       const ang = Math.atan2(player.y - d.y, player.x - d.x);
-      const spd = 165 + GS.wave * 24;
+      const spd = (165 + GS.wave * 24) * diff.enemyDiveSpeedMult;
       d.dive = { vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd + 55, t: 2.8 };
     }
   }
@@ -2054,6 +2121,7 @@ function hitPlayer() {
 }
 
 function updateTrenchRun(dt) {
+  const diff = getDifficulty();
   // Trench movement limits keep the Falcon over the Death Star surface corridor.
   let mx = 0, my = 0;
   if (K.ArrowLeft)  mx -= 1;
@@ -2068,22 +2136,23 @@ function updateTrenchRun(dt) {
   if (player.shot > 0) player.shot -= dt;
 
   if (K.Space && player.shot <= 0) {
-    player.shot = 0.16;
+    player.shot = 0.16 * diff.playerShotCooldownMult;
     SFX.shoot();
     const by = player.y - 34;
-    bullets.push({ x: player.x - 7, y: by, vx: 0, vy: -700, l: 28, own: 'p' });
-    bullets.push({ x: player.x + 7, y: by, vx: 0, vy: -700, l: 28, own: 'p' });
+    const bulletVy = -700 * diff.playerBulletSpeedMult;
+    bullets.push({ x: player.x - 7, y: by, vx: 0, vy: bulletVy, l: 28, own: 'p' });
+    bullets.push({ x: player.x + 7, y: by, vx: 0, vy: bulletVy, l: 28, own: 'p' });
   }
 
   updateLukeWingAI(dt);
 
-  GS.trenchProgress = Math.min(TRENCH_GOAL, GS.trenchProgress + dt * 170);
+  GS.trenchProgress = Math.min(TRENCH_GOAL, GS.trenchProgress + dt * 170 * diff.trenchProgressRateMult);
 
   trenchSpawnTimer -= dt;
   if (trenchSpawnTimer <= 0) {
     spawnTrenchEnemy();
     const density = 0.58 - Math.min(0.28, GS.trenchProgress / TRENCH_GOAL * 0.24);
-    trenchSpawnTimer = Math.max(0.22, density + rand(0, 0.24));
+    trenchSpawnTimer = Math.max(0.22, density + rand(0, 0.24)) * diff.trenchSpawnIntervalMult;
   }
 
   trenchShootTimer -= dt;
@@ -2092,30 +2161,30 @@ function updateTrenchRun(dt) {
     const shooterPool = weighted.length ? weighted : trenchEnemies;
     const shooter = shooterPool[Math.floor(Math.random() * shooterPool.length)];
     const ang = Math.atan2(player.y - shooter.y, player.x - shooter.x);
-    const spd = 230 + GS.trenchProgress / 90 + (shooter.kind === 'bomber' ? 28 : 0);
+    const spd = (230 + GS.trenchProgress / 90 + (shooter.kind === 'bomber' ? 28 : 0)) * diff.enemyBulletSpeedMult;
     const spread = shooter.kind === 'turret' ? 0.14 : 0.06;
     eBullets.push({ x: shooter.x, y: shooter.y + 12, vx: Math.cos(ang - spread) * spd * 0.38, vy: spd, l: 14, own: 'e' });
     if (shooter.kind === 'turret') {
       eBullets.push({ x: shooter.x, y: shooter.y + 12, vx: Math.cos(ang + spread) * spd * 0.38, vy: spd, l: 14, own: 'e' });
     }
     SFX.eShoot();
-    trenchShootTimer = Math.max(0.26, 0.74 - GS.trenchProgress / 9000) + rand(0, 0.22);
+    trenchShootTimer = (Math.max(0.26, 0.74 - GS.trenchProgress / 9000) + rand(0, 0.22)) * diff.enemyShootIntervalMult;
   }
 
   for (const e of trenchEnemies) {
     if (!e.alive) continue;
     e.anim += dt;
     if (e.kind === 'interceptor') {
-      e.vx += Math.sin(e.anim * 6 + e.seed) * 20 * dt;
-      e.vy += Math.cos(e.anim * 4 + e.seed) * 12 * dt;
+      e.vx += Math.sin(e.anim * 6 + e.seed) * 20 * dt * diff.enemySpeedMult;
+      e.vy += Math.cos(e.anim * 4 + e.seed) * 12 * dt * diff.enemySpeedMult;
     } else if (e.kind === 'turret') {
       e.vx *= 0.986;
-      e.vx += Math.sin(e.anim * 2 + e.seed) * 8 * dt;
-      e.vy = Math.min(145, e.vy + 6 * dt);
+      e.vx += Math.sin(e.anim * 2 + e.seed) * 8 * dt * diff.enemySpeedMult;
+      e.vy = Math.min(145 * diff.enemySpeedMult, e.vy + 6 * dt * diff.enemySpeedMult);
     } else if (e.kind === 'bomber') {
       const towardX = clamp(player.x - e.x, -140, 140);
-      e.vx += towardX * dt * 0.34;
-      e.vy = Math.min(185, e.vy + 9 * dt);
+      e.vx += towardX * dt * 0.34 * diff.enemySpeedMult;
+      e.vy = Math.min(185 * diff.enemySpeedMult, e.vy + 9 * dt * diff.enemySpeedMult);
     }
     e.x += e.vx * dt;
     e.y += e.vy * dt;
@@ -2312,6 +2381,12 @@ function loop(ts) {
   last = ts;
 
   // Global input handling
+  if (GS.mode === 'menu') {
+    if (KP.Digit1 || KP.Numpad1) GS.difficulty = 'easy';
+    if (KP.Digit2 || KP.Numpad2) GS.difficulty = 'normal';
+    if (KP.Digit3 || KP.Numpad3) GS.difficulty = 'hard';
+  }
+
   if (KP.Enter || KP.NumpadEnter) {
     if (GS.mode === 'menu' || GS.mode === 'over' || GS.mode === 'victory') {
       if (GS.mode === 'menu') startIntro();

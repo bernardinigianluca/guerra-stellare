@@ -39,6 +39,7 @@ Nota: il progetto e pensato per funzionare anche in modalita file locale (`file:
 - `Space`: fuoco
 - `P`: pausa/riprendi
 - `M`: mute/unmute
+- `1`, `2`, `3`: selezione difficolta dal menu (Facile, Normale, Difficile)
 - `Esc`: ritorno al menu (da gioco/pausa/intro)
 - `Invio`: start, skip briefing, restart dopo game over
 
@@ -78,6 +79,10 @@ Transizioni principali:
 
 ## 7. Regole gameplay
 - Le ondate sono composte da 30 nemici (`WAVE_SIZE = 30`) con difficolta crescente.
+- Difficolta disponibili (selezionabili nel menu):
+  - Facile: nemici piu lenti, meno aggressivi, progressione piu permissiva
+  - Normale: bilanciamento standard
+  - Difficile: nemici piu veloci, piu resistenti e con fuoco piu frequente
 - Sequenza campagna attuale:
   - Livello 1: battaglia spaziale classica (formazioni + minaccia nodriza)
   - Livello 2: Death Star Run nella trincea con spawn nemici da lati/alto
@@ -114,6 +119,7 @@ HUD mostra:
 - Combo e barra tempo combo
 - Scudo attivo e timer residuo
 - Vite (icone falcon)
+- Difficolta attiva
 - Stato audio (`[M]`)
 - Hint pausa (`[P]`)
 
