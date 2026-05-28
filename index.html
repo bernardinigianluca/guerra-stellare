@@ -492,6 +492,7 @@ const INTRO_CRAWL = [
 let player, bullets, eBullets, enemies, mothership, explosions, asteroids;
 let eGroup, motherTimer;
 let trenchEnemies, trenchSpawnTimer, trenchShootTimer, exhaustPort;
+let cinematicState;
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
@@ -504,7 +505,19 @@ function init() {
   trenchEnemies = [];
   trenchSpawnTimer = 0.55;
   trenchShootTimer = 0.8;
-  exhaustPort = { active: false, x: W * 0.5, y: 118, w: 46, h: 24, hp: 10, maxHp: 10 };
+  exhaustPort = {
+    active: false,
+    x: W * 0.5,
+    y: 118,
+    w: 46,
+    h: 24,
+    hp: 10,
+    maxHp: 10,
+    open: false,
+    cycle: 0,
+    blockHintCd: 0
+  };
+  cinematicState = null;
   mothership = null; motherTimer = 18 + rand(0, 8);
   spawnWave();
 }
@@ -593,13 +606,18 @@ function startDeathStarRun() {
   player.shield = Math.max(player.shield, 2.5);
   exhaustPort.active = false;
   exhaustPort.hp = exhaustPort.maxHp;
+  exhaustPort.open = false;
+  exhaustPort.cycle = 0;
+  exhaustPort.blockHintCd = 0;
+  cinematicState = null;
   setMessage('LIVELLO 2: TRINCEA DELLA MORTE NERA', 3.2);
 }
 
 function spawnTrenchEnemy() {
   const side = Math.floor(Math.random() * 3);
   const typeRoll = Math.random();
-  const type = typeRoll < 0.62 ? 'basic' : typeRoll < 0.9 ? 'mid' : 'boss';
+  const kind = typeRoll < 0.5 ? 'interceptor' : typeRoll < 0.85 ? 'turret' : 'bomber';
+  const type = kind === 'bomber' ? 'boss' : kind === 'interceptor' ? 'mid' : 'basic';
   let x = W * 0.5;
   let y = -40;
 
@@ -615,20 +633,73 @@ function spawnTrenchEnemy() {
   }
 
   const ang = Math.atan2(player.y - y, player.x - x);
-  const speed = 115 + GS.trenchProgress * 0.02 + rand(20, 80);
+  const speedBase = kind === 'interceptor' ? 210 : kind === 'bomber' ? 125 : 155;
+  const speed = speedBase + GS.trenchProgress * 0.02 + rand(16, 62);
   trenchEnemies.push({
     x,
     y,
     w: 52 * ENEMY_SIZE_FACTOR,
     h: 38 * ENEMY_SIZE_FACTOR,
     type,
-    hp: type === 'boss' ? 3 : type === 'mid' ? 2 : 1,
-    maxHp: type === 'boss' ? 3 : type === 'mid' ? 2 : 1,
+    kind,
+    hp: kind === 'bomber' ? 4 : kind === 'interceptor' ? 2 : 1,
+    maxHp: kind === 'bomber' ? 4 : kind === 'interceptor' ? 2 : 1,
     alive: true,
     anim: rand(0, 6.28),
+    seed: rand(0, 6.28),
     vx: Math.cos(ang) * speed,
     vy: Math.sin(ang) * speed * 0.85 + 18
   });
+}
+
+function startDeathStarEscapeCinematic() {
+  cinematicState = {
+    t: 0,
+    duration: 6.2,
+    nextBoom: 0.12
+  };
+  GS.mode = 'cinematic';
+  player.inv = 999;
+  player.shield = 0;
+  bullets = [];
+  eBullets = [];
+  trenchEnemies = [];
+  setMessage('COLPO A SEGNO! FUGA IMMEDIATA!', 2.8);
+}
+
+function updateCinematic(dt) {
+  if (!cinematicState) return;
+  cinematicState.t += dt;
+
+  const escapeT = clamp(cinematicState.t / cinematicState.duration, 0, 1);
+  const tx = W * (0.5 + 0.28 * escapeT);
+  const ty = H * (0.72 + 0.2 * Math.pow(escapeT, 0.72));
+  player.x += (tx - player.x) * Math.min(1, dt * 4.8);
+  player.y += (ty - player.y) * Math.min(1, dt * 4.8);
+
+  GS.trenchProgress = TRENCH_GOAL;
+  GS.shake = Math.max(GS.shake, 0.35 + escapeT * 0.85);
+
+  cinematicState.nextBoom -= dt;
+  if (cinematicState.nextBoom <= 0) {
+    const rx = W * 0.5 + rand(-185, 185);
+    const ry = rand(80, H - 34);
+    mkExplosion(rx, ry, rand(28, 90));
+    if (Math.random() < 0.35) SFX.explodeMedium();
+    cinematicState.nextBoom = Math.max(0.05, 0.18 - escapeT * 0.11);
+  }
+
+  explosions = explosions.filter(e => { e.t -= dt; return e.t > 0; });
+
+  if (cinematicState.t >= cinematicState.duration) {
+    GS.mode = 'victory';
+    setMessage('LA MORTE NERA ESPLODE NEL VUOTO', 3.5);
+    stopBattleMusic();
+    if (GS.score > GS.best) {
+      GS.best = GS.score;
+      saveBest(GS.best);
+    }
+  }
 }
 
 // ── DRAW: MILLENNIUM FALCON ───────────────────────────────────────────────────
@@ -1158,23 +1229,29 @@ function drawTrenchScene() {
   ctx.stroke();
 
   if (exhaustPort && exhaustPort.active) {
+    const isOpen = exhaustPort.open;
     const pulse = 0.55 + 0.45 * Math.sin(Date.now() * 0.01);
     ctx.save();
     ctx.translate(exhaustPort.x, exhaustPort.y);
-    ctx.fillStyle = '#0f131d';
+    ctx.fillStyle = isOpen ? '#0f131d' : '#242a36';
     ctx.fillRect(-exhaustPort.w * 0.5, -exhaustPort.h * 0.5, exhaustPort.w, exhaustPort.h);
-    ctx.strokeStyle = 'rgba(148,185,255,0.52)';
+    ctx.strokeStyle = isOpen ? 'rgba(148,185,255,0.52)' : 'rgba(190,210,255,0.3)';
     ctx.strokeRect(-exhaustPort.w * 0.5, -exhaustPort.h * 0.5, exhaustPort.w, exhaustPort.h);
-    ctx.beginPath();
-    ctx.arc(0, 0, 7, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 92, 56, ${0.45 + pulse * 0.4})`;
-    ctx.fill();
+    if (isOpen) {
+      ctx.beginPath();
+      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 92, 56, ${0.45 + pulse * 0.4})`;
+      ctx.fill();
+    } else {
+      ctx.fillStyle = 'rgba(96, 112, 140, 0.95)';
+      ctx.fillRect(-6.5, -2.5, 13, 5);
+    }
     ctx.restore();
 
-    ctx.fillStyle = '#ffbb7a';
+    ctx.fillStyle = isOpen ? '#ffbb7a' : '#b5c4da';
     ctx.font = 'bold 13px "Courier New"';
     ctx.textAlign = 'center';
-    ctx.fillText('PUNTO DEBOLE', exhaustPort.x, exhaustPort.y - 18);
+    ctx.fillText(isOpen ? 'PUNTO DEBOLE APERTO' : 'BOCCA CHIUSA', exhaustPort.x, exhaustPort.y - 18);
   }
 }
 
@@ -1430,6 +1507,20 @@ function drawVictoryScreen() {
   }
 }
 
+function drawCinematicOverlay() {
+  if (!cinematicState) return;
+  const p = clamp(cinematicState.t / cinematicState.duration, 0, 1);
+  ctx.fillStyle = `rgba(255,140,80,${0.06 + p * 0.18})`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd9a5';
+  ctx.font = 'bold 24px "Courier New"';
+  ctx.fillText('EVACUAZIONE!', W * 0.5, 86);
+  ctx.font = '15px "Courier New"';
+  ctx.fillStyle = '#f5bf7f';
+  ctx.fillText('MOTORI AL MASSIMO - ALLONTANARSI DALLA STRUTTURA', W * 0.5, 112);
+}
+
 // ── UPDATE ────────────────────────────────────────────────────────────────────
 function update(dt) {
   if (GS.mode === 'intro') {
@@ -1439,6 +1530,11 @@ function update(dt) {
       SFX.crawlEnter();
     }
     if (GS.introTime >= INTRO_DURATION) startGame();
+    return;
+  }
+
+  if (GS.mode === 'cinematic') {
+    updateCinematic(dt);
     return;
   }
 
@@ -1729,10 +1825,16 @@ function updateTrenchRun(dt) {
 
   trenchShootTimer -= dt;
   if (trenchShootTimer <= 0 && trenchEnemies.length) {
-    const shooter = trenchEnemies[Math.floor(Math.random() * trenchEnemies.length)];
+    const weighted = trenchEnemies.filter(e => e.kind !== 'interceptor' || Math.random() < 0.45);
+    const shooterPool = weighted.length ? weighted : trenchEnemies;
+    const shooter = shooterPool[Math.floor(Math.random() * shooterPool.length)];
     const ang = Math.atan2(player.y - shooter.y, player.x - shooter.x);
-    const spd = 230 + GS.trenchProgress / 90;
-    eBullets.push({ x: shooter.x, y: shooter.y + 12, vx: Math.cos(ang) * spd * 0.38, vy: spd, l: 14, own: 'e' });
+    const spd = 230 + GS.trenchProgress / 90 + (shooter.kind === 'bomber' ? 28 : 0);
+    const spread = shooter.kind === 'turret' ? 0.14 : 0.06;
+    eBullets.push({ x: shooter.x, y: shooter.y + 12, vx: Math.cos(ang - spread) * spd * 0.38, vy: spd, l: 14, own: 'e' });
+    if (shooter.kind === 'turret') {
+      eBullets.push({ x: shooter.x, y: shooter.y + 12, vx: Math.cos(ang + spread) * spd * 0.38, vy: spd, l: 14, own: 'e' });
+    }
     SFX.eShoot();
     trenchShootTimer = Math.max(0.26, 0.74 - GS.trenchProgress / 9000) + rand(0, 0.22);
   }
@@ -1740,6 +1842,18 @@ function updateTrenchRun(dt) {
   for (const e of trenchEnemies) {
     if (!e.alive) continue;
     e.anim += dt;
+    if (e.kind === 'interceptor') {
+      e.vx += Math.sin(e.anim * 6 + e.seed) * 20 * dt;
+      e.vy += Math.cos(e.anim * 4 + e.seed) * 12 * dt;
+    } else if (e.kind === 'turret') {
+      e.vx *= 0.986;
+      e.vx += Math.sin(e.anim * 2 + e.seed) * 8 * dt;
+      e.vy = Math.min(145, e.vy + 6 * dt);
+    } else if (e.kind === 'bomber') {
+      const towardX = clamp(player.x - e.x, -140, 140);
+      e.vx += towardX * dt * 0.34;
+      e.vy = Math.min(185, e.vy + 9 * dt);
+    }
     e.x += e.vx * dt;
     e.y += e.vy * dt;
     e.vx *= 0.998;
@@ -1762,6 +1876,9 @@ function updateTrenchRun(dt) {
 
   if (GS.trenchProgress >= TRENCH_GOAL * 0.84) {
     exhaustPort.active = true;
+    exhaustPort.cycle += dt;
+    exhaustPort.open = (exhaustPort.cycle % 3.8) < 1.35;
+    if (exhaustPort.blockHintCd > 0) exhaustPort.blockHintCd -= dt;
     exhaustPort.x = W * 0.5 + Math.sin(Date.now() * 0.003) * 76;
   }
 
@@ -1786,17 +1903,19 @@ function updateTrenchRun(dt) {
     if (exhaustPort.active && b.own !== 'x') {
       if (rectHit(b.x, b.y, 4, 14, exhaustPort.x, exhaustPort.y, exhaustPort.w, exhaustPort.h)) {
         b.own = 'x';
-        exhaustPort.hp--;
-        bumpShake(0.2);
-        if (exhaustPort.hp <= 0) {
-          mkExplosion(exhaustPort.x, exhaustPort.y - 18, 140);
-          SFX.explodeBig();
-          setMessage('COLPO PERFETTO! MORTE NERA DISTRUTTA', 4);
-          GS.mode = 'victory';
-          stopBattleMusic();
-          if (GS.score > GS.best) {
-            GS.best = GS.score;
-            saveBest(GS.best);
+        if (exhaustPort.open) {
+          exhaustPort.hp--;
+          bumpShake(0.2);
+          if (exhaustPort.hp <= 0) {
+            mkExplosion(exhaustPort.x, exhaustPort.y - 18, 140);
+            SFX.explodeBig();
+            startDeathStarEscapeCinematic();
+          }
+        } else {
+          mkExplosion(exhaustPort.x, exhaustPort.y, 18);
+          if (exhaustPort.blockHintCd <= 0) {
+            setMessage('BERSAGLIO CHIUSO! ATTENDI APERTURA', 1.4);
+            exhaustPort.blockHintCd = 1.2;
           }
         }
       }
@@ -1890,6 +2009,7 @@ function render() {
   if (GS.mode === 'victory') { renderScene(); drawHUD(); drawVictoryScreen(); return; }
   if (GS.mode === 'over') { renderScene(); drawHUD(); drawOverScreen(); return; }
   if (GS.mode === 'pause') { renderScene(); drawHUD(); drawStatusBanner(); drawPauseScreen(); return; }
+  if (GS.mode === 'cinematic') { renderScene(); drawHUD(); drawCinematicOverlay(); drawStatusBanner(); return; }
 
   renderScene();
   drawHUD();
@@ -1913,9 +2033,9 @@ function loop(ts) {
       startGame();
     }
   }
-  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro' || GS.mode === 'victory')) {
+  if (KP.Escape && (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'intro' || GS.mode === 'victory' || GS.mode === 'cinematic')) {
     if (GS.mode === 'intro') stopIntroMusic();
-    if (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'victory') stopBattleMusic();
+    if (GS.mode === 'play' || GS.mode === 'pause' || GS.mode === 'victory' || GS.mode === 'cinematic') stopBattleMusic();
     GS.mode = 'menu';
   }
   if (KP.KeyP) {
