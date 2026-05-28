@@ -53,6 +53,7 @@ La macchina a stati usa `GS.mode` con questi valori:
 - `pause`: gioco congelato con overlay
 - `over`: game over con punteggio finale
 - `victory`: schermata vittoria dopo distruzione punto debole
+- `cinematic`: sequenza di fuga/esplosioni prima della vittoria finale
 
 Transizioni principali:
 - `menu -> intro` con `Invio`
@@ -61,7 +62,8 @@ Transizioni principali:
 - `play/pause/intro -> menu` con `Esc`
 - `over -> play` con `Invio`
 - `play (fase spazio) -> play (fase trincea)` automaticamente dopo pulizia totale nemici
-- `play (fase trincea) -> victory` quando il punto debole viene distrutto
+- `play (fase trincea) -> cinematic` quando il punto debole viene colpito definitivamente
+- `cinematic -> victory` al termine della fuga del Falcon
 
 ## 6. Entita principali
 - Player (Millennium Falcon): posizione, velocita, invulnerabilita, scudo, cooldown sparo.
@@ -78,8 +80,14 @@ Transizioni principali:
   - Livello 1: battaglia spaziale classica (formazioni + minaccia nodriza)
   - Livello 2: Death Star Run nella trincea con spawn nemici da lati/alto
 - In livello 2 il Falcon resta nella corsia della trincea e deve avanzare fino al punto debole.
-- A fine avanzamento compare il punto debole (`exhaust port`) da colpire piu volte.
+  - A fine avanzamento compare il punto debole (`exhaust port`) da colpire piu volte.
+  - Il punto debole alterna finestre `aperto/chiuso`: i colpi entrano solo quando e aperto.
+  - Nemici livello 2 differenziati:
+    - `interceptor`: piu rapidi e con traiettorie nervose
+    - `turret`: fuoco a ventaglio
+    - `bomber`: piu lenti ma resistenti e aggressivi
 - Distrutto il punto debole: vittoria missione e salvataggio record.
+  - Dopo il colpo finale parte una sequenza cinematica di fuga con esplosioni progressive della struttura.
 - Distruggere nemici incrementa punteggio e combo (max x5).
 - Se il player viene colpito: perde una vita, reset combo, breve invulnerabilita.
 - Distruzione nave nodriza:
@@ -149,6 +157,7 @@ Entrambe gestiscono errori in modo safe (es. limiti modalita file locale).
 - Audio: `ensureAudio()`, `startIntroMusic()`, `startBattleMusic()`, `stopIntroMusic()`, `stopBattleMusic()`
 - Stato gioco: `init()`, `startIntro()`, `startGame()`, `spawnWave()`, `update(dt)`, `hitPlayer()`
 - Stato livello 2: `startDeathStarRun()`, `spawnTrenchEnemy()`, `updateTrenchRun(dt)`
+- Cinematica finale: `startDeathStarEscapeCinematic()`, `updateCinematic(dt)`
 - Rendering: `render()`, `renderScene()`, `drawTrenchScene()`, `drawHUD()`, `drawMenu()`, `drawIntroCrawl()`, `drawOverScreen()`, `drawVictoryScreen()`
 - Main loop: `loop(ts)`
 
