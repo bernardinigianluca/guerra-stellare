@@ -184,12 +184,12 @@ let mothershipLeftSpriteReady = false;
 let mothershipSpriteCanvas = null;
 let mothershipLeftSpriteCanvas = null;
 mothershipSprite.onload = () => {
-  mothershipSpriteCanvas = buildMothershipSprite(mothershipSprite);
+  mothershipSpriteCanvas = buildMothershipSprite(mothershipSprite) || mothershipSprite;
   mothershipSpriteReady = !!mothershipSpriteCanvas;
 };
 mothershipSprite.src = 'nave_nodriza.png';
 mothershipLeftSprite.onload = () => {
-  mothershipLeftSpriteCanvas = buildMothershipSprite(mothershipLeftSprite);
+  mothershipLeftSpriteCanvas = buildMothershipSprite(mothershipLeftSprite) || mothershipLeftSprite;
   mothershipLeftSpriteReady = !!mothershipLeftSpriteCanvas;
 };
 mothershipLeftSprite.src = 'nave_nodriza_sinistra.png';
@@ -1324,56 +1324,33 @@ function destroyEnemy(e) {
 
 // ── DRAW: STAR DESTROYER (MOTHERSHIP) ────────────────────────────────────────
 function buildMothershipSprite(img) {
-  const sourceCanvas = document.createElement('canvas');
-  sourceCanvas.width = img.naturalWidth;
-  sourceCanvas.height = img.naturalHeight;
-  const sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
-  if (!sourceCtx) return null;
+  try {
+    const sourceCanvas = document.createElement('canvas');
+    sourceCanvas.width = img.naturalWidth;
+    sourceCanvas.height = img.naturalHeight;
+    const sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+    if (!sourceCtx) return null;
 
-  sourceCtx.drawImage(img, 0, 0);
-  const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-  const data = imageData.data;
-  let minX = sourceCanvas.width;
-  let minY = sourceCanvas.height;
-  let maxX = -1;
-  let maxY = -1;
+    sourceCtx.drawImage(img, 0, 0);
+    const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+    const data = imageData.data;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const alpha = data[i + 3];
-    const pixelIndex = i / 4;
-    const x = pixelIndex % sourceCanvas.width;
-    const y = Math.floor(pixelIndex / sourceCanvas.width);
-    const isYellowBg = r > 120 && g > 100 && b < 85 && r - b > 65;
-    const isDarkBg = r < 24 && g < 24 && b < 24;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const alpha = data[i + 3];
+      const isYellowBg = r > 120 && g > 100 && b < 85 && r - b > 65;
+      const isDarkBg = r < 24 && g < 24 && b < 24;
 
-    if (alpha && !isYellowBg && !isDarkBg) {
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-      continue;
+      if (!alpha || isYellowBg || isDarkBg) data[i + 3] = 0;
     }
 
-    data[i + 3] = 0;
+    sourceCtx.putImageData(imageData, 0, 0);
+    return sourceCanvas;
+  } catch {
+    return null;
   }
-
-  if (maxX < minX || maxY < minY) return null;
-
-  sourceCtx.putImageData(imageData, 0, 0);
-
-  const width = maxX - minX + 1;
-  const height = maxY - minY + 1;
-  const trimmedCanvas = document.createElement('canvas');
-  trimmedCanvas.width = width;
-  trimmedCanvas.height = height;
-  const trimmedCtx = trimmedCanvas.getContext('2d');
-  if (!trimmedCtx) return null;
-
-  trimmedCtx.drawImage(sourceCanvas, minX, minY, width, height, 0, 0, width, height);
-  return trimmedCanvas;
 }
 
 function drawMothershipFallback() {
