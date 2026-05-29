@@ -239,6 +239,9 @@ falconShootTrack.volume = 0.46;
 const enemyShootTrack = new Audio('x-wing-fire.mp3');
 enemyShootTrack.preload = 'auto';
 enemyShootTrack.volume = 0.42;
+const enemyExplodeTrack = new Audio('tie_flight_explode.mp3');
+enemyExplodeTrack.preload = 'auto';
+enemyExplodeTrack.volume = 0.5;
 const FALCON_SHOOT_SFX_COOLDOWN = 95;
 let lastFalconShootSfxAt = -Infinity;
 
@@ -263,6 +266,40 @@ function playEnemyShootSfx() {
   shot.play().catch(() => {
     // Ignore playback failures from browser autoplay policies.
   });
+}
+
+function playEnemyExplodeSfx(level = 'light') {
+  if (muted) return;
+
+  const layers = level === 'mothership'
+    ? [
+        { volume: 0.88, rate: 0.78 },
+        { volume: 0.62, rate: 0.66 },
+        { volume: 0.42, rate: 0.54 }
+      ]
+    : level === 'vader'
+      ? [
+          { volume: 0.64, rate: 0.92 },
+          { volume: 0.34, rate: 0.78 }
+        ]
+      : level === 'heavy'
+        ? [
+            { volume: 0.46, rate: 0.98 },
+            { volume: 0.22, rate: 0.84 }
+          ]
+        : [
+            { volume: 0.3, rate: 1.08 }
+          ];
+
+  for (const layer of layers) {
+    const boom = enemyExplodeTrack.cloneNode();
+    boom.volume = Math.min(layer.volume, 1);
+    boom.playbackRate = layer.rate;
+    boom.muted = muted;
+    boom.play().catch(() => {
+      // Ignore playback failures from browser autoplay policies.
+    });
+  }
 }
 
 function ensureAudio() {
@@ -317,6 +354,10 @@ const SFX = {
   extraLife()    { [523,659,784,1047].forEach((f,i) => tone(f,'sine',0.18,0.28,null,i*0.10)); },
   waveComplete() { [392,494,587,784,988].forEach((f,i) => tone(f,'square',0.22,0.18,null,i*0.09)); },
   gameOver()     { [523,440,349,220].forEach((f,i) => tone(f,'sine',0.38,0.30,null,i*0.26)); },
+  enemyExplodeLight() { playEnemyExplodeSfx('light'); },
+  enemyExplodeHeavy() { playEnemyExplodeSfx('heavy'); },
+  enemyExplodeVader() { playEnemyExplodeSfx('vader'); },
+  enemyExplodeMothership() { playEnemyExplodeSfx('mothership'); },
   crawlEnter()   {
     tone(294, 'triangle', 0.35, 0.17, 220, 0);
     tone(440, 'sawtooth', 0.22, 0.11, 330, 0.08);
@@ -1310,7 +1351,7 @@ function destroyEnemy(e) {
   if (e.type === 'vader') {
     addScore(90);
     mkExplosion(e.x, e.y, 110);
-    SFX.explodeBig();
+    SFX.enemyExplodeVader();
     bumpShake(0.95);
     setMessage('DARK VATER DISTRUTTO', 2.1);
     triggerEnemyPanic(e.x, e.y);
@@ -1318,7 +1359,8 @@ function destroyEnemy(e) {
   }
   addScore(e.type === 'boss' ? 30 : e.type === 'mid' ? 20 : 10);
   mkExplosion(e.x, e.y, 32);
-  SFX.explodeSmall();
+  if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
+  else SFX.enemyExplodeLight();
   bumpShake(0.18);
 }
 
@@ -2102,7 +2144,7 @@ function update(dt) {
         mothership.hp--;
         if (mothership.hp <= 0) {
           mkExplosion(mothership.x, mothership.y, 88);
-          SFX.explodeBig();
+          SFX.enemyExplodeMothership();
           SFX.extraLife();
           player.shield = SHIELD_DURATION;
           GS.score += (150 + GS.wave * 20) * GS.combo;
@@ -2148,7 +2190,8 @@ function update(dt) {
     if (rectHit(e.x, e.y, e.w, e.h, player.x, player.y, 64, 46)) {
       e.alive = false; GS.waveKills++;
       mkExplosion(e.x, e.y, 34);
-      SFX.explodeSmall();
+      if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
+      else SFX.enemyExplodeLight();
       hitPlayer(); break;
     }
   }
@@ -2292,8 +2335,8 @@ function updateTrenchRun(dt) {
           GS.waveKills++;
           addScore(e.type === 'boss' ? 35 : e.type === 'mid' ? 20 : 12);
           mkExplosion(e.x, e.y, e.type === 'boss' ? 46 : 30);
-          if (e.type === 'boss') SFX.explodeMedium();
-          else SFX.explodeSmall();
+          if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
+          else SFX.enemyExplodeLight();
         }
         continue outerTrench;
       }
@@ -2343,7 +2386,8 @@ function updateTrenchRun(dt) {
     if (rectHit(e.x, e.y, e.w, e.h, player.x, player.y, 64, 46)) {
       e.alive = false;
       mkExplosion(e.x, e.y, 34);
-      SFX.explodeSmall();
+      if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
+      else SFX.enemyExplodeLight();
       hitPlayer();
       break;
     }
