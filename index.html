@@ -1350,7 +1350,7 @@ function destroyEnemy(e) {
   GS.waveKills++;
   if (e.type === 'vader') {
     addScore(90);
-    mkExplosion(e.x, e.y, 110);
+    mkExplosion(e.x, e.y, 110, { shipDebris: 'vader' });
     SFX.enemyExplodeVader();
     bumpShake(0.95);
     setMessage('DARK VATER DISTRUTTO', 2.1);
@@ -1358,7 +1358,7 @@ function destroyEnemy(e) {
     return;
   }
   addScore(e.type === 'boss' ? 30 : e.type === 'mid' ? 20 : 10);
-  mkExplosion(e.x, e.y, 32);
+  mkExplosion(e.x, e.y, 32, { shipDebris: e.type === 'boss' || e.type === 'mid' ? 'heavy' : 'light' });
   if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
   else SFX.enemyExplodeLight();
   bumpShake(0.18);
@@ -1597,6 +1597,36 @@ function drawExplosion(e) {
     ctx.beginPath(); ctx.arc(px, py, Math.max(0.1, pr), 0, Math.PI * 2);
     ctx.fillStyle = `rgba(${pk.big ? '255,160,40' : '255,70,20'},${alpha})`; ctx.fill();
   }
+
+  if (e.debris) {
+    for (const piece of e.debris) {
+      const px = e.x + piece.vx * p * e.T;
+      const py = e.y + piece.vy * p * e.T + piece.arc * p * (1 - p) * 0.45;
+      const alpha = Math.max(0, (1 - p * 0.92) * piece.a);
+      const scale = 1 - p * 0.26;
+      const rot = piece.rot + piece.spin * p * e.T;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(rot);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = `rgba(${piece.color},${alpha})`;
+      ctx.strokeStyle = `rgba(255,210,150,${alpha * 0.42})`;
+      ctx.lineWidth = 1;
+      if (piece.shape === 'panel') {
+        ctx.fillRect(-piece.w * 0.5, -piece.h * 0.5, piece.w, piece.h);
+        ctx.strokeRect(-piece.w * 0.5, -piece.h * 0.5, piece.w, piece.h);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(piece.w * 0.6, 0);
+        ctx.lineTo(-piece.w * 0.45, -piece.h * 0.55);
+        ctx.lineTo(-piece.w * 0.55, piece.h * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
 }
 
 function drawTrenchScene() {
@@ -1667,13 +1697,48 @@ function drawTrenchScene() {
   }
 }
 
-function mkExplosion(x, y, r) {
+function mkShipDebris(r, profile = 'light') {
+  const presets = {
+    light: { count: 6, speedMin: r * 0.7, speedMax: r * 1.9, sizeMin: 4, sizeMax: 10 },
+    heavy: { count: 9, speedMin: r * 0.85, speedMax: r * 2.3, sizeMin: 5, sizeMax: 13 },
+    vader: { count: 12, speedMin: r * 0.9, speedMax: r * 2.5, sizeMin: 6, sizeMax: 15 },
+    mothership: { count: 18, speedMin: r * 0.95, speedMax: r * 2.9, sizeMin: 7, sizeMax: 20 }
+  };
+  const preset = presets[profile] || presets.light;
+  const palette = profile === 'mothership'
+    ? ['170,178,194', '116,126,148', '84,94,114', '255,164,76']
+    : profile === 'vader'
+      ? ['128,136,154', '96,104,122', '70,76,90', '255,134,68']
+      : ['154,162,176', '105,114,128', '72,80,96', '255,128,62'];
+
+  return Array.from({ length: preset.count }, () => {
+    const a = rand(0, Math.PI * 2);
+    const s = rand(preset.speedMin, preset.speedMax);
+    const w = rand(preset.sizeMin, preset.sizeMax);
+    const h = rand(Math.max(3, preset.sizeMin * 0.45), Math.max(5, preset.sizeMax * 0.72));
+    return {
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      w,
+      h,
+      a: rand(0.42, 0.92),
+      rot: rand(0, Math.PI * 2),
+      spin: rand(-8.5, 8.5),
+      arc: rand(-28, 28) * r,
+      color: palette[Math.floor(Math.random() * palette.length)],
+      shape: Math.random() < 0.58 ? 'panel' : 'shard'
+    };
+  });
+}
+
+function mkExplosion(x, y, r, opts = null) {
   explosions.push({
     x, y, r, t: 0.65, T: 0.65,
     pk: Array.from({length: 22}, () => {
       const a = rand(0, Math.PI * 2), s = rand(r * 0.25, r * 1.0);
       return { vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: rand(1.5, 5.5), a: rand(0.5, 1), big: Math.random() < 0.4 };
-    })
+    }),
+    debris: opts?.shipDebris ? mkShipDebris(r, opts.shipDebris) : null
   });
 }
 
@@ -2143,7 +2208,7 @@ function update(dt) {
         b.own = 'x';
         mothership.hp--;
         if (mothership.hp <= 0) {
-          mkExplosion(mothership.x, mothership.y, 88);
+          mkExplosion(mothership.x, mothership.y, 88, { shipDebris: 'mothership' });
           SFX.enemyExplodeMothership();
           SFX.extraLife();
           player.shield = SHIELD_DURATION;
@@ -2189,7 +2254,7 @@ function update(dt) {
     if (!e.alive || !e.dive) continue;
     if (rectHit(e.x, e.y, e.w, e.h, player.x, player.y, 64, 46)) {
       e.alive = false; GS.waveKills++;
-      mkExplosion(e.x, e.y, 34);
+      mkExplosion(e.x, e.y, 34, { shipDebris: e.type === 'boss' || e.type === 'mid' ? 'heavy' : 'light' });
       if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
       else SFX.enemyExplodeLight();
       hitPlayer(); break;
@@ -2216,7 +2281,7 @@ function hitPlayer() {
   GS.combo = 1;
   GS.comboTimer = 0;
   SFX.playerHit();
-  mkExplosion(player.x, player.y, 58);
+  mkExplosion(player.x, player.y, 58, { shipDebris: 'heavy' });
   bumpShake(0.58);
   setMessage('SCAFI COLPITI', 1.2);
   if (GS.lives <= 0) {
@@ -2334,7 +2399,7 @@ function updateTrenchRun(dt) {
           e.alive = false;
           GS.waveKills++;
           addScore(e.type === 'boss' ? 35 : e.type === 'mid' ? 20 : 12);
-          mkExplosion(e.x, e.y, e.type === 'boss' ? 46 : 30);
+          mkExplosion(e.x, e.y, e.type === 'boss' ? 46 : 30, { shipDebris: e.type === 'boss' || e.type === 'mid' ? 'heavy' : 'light' });
           if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
           else SFX.enemyExplodeLight();
         }
@@ -2385,7 +2450,7 @@ function updateTrenchRun(dt) {
     if (!e.alive) continue;
     if (rectHit(e.x, e.y, e.w, e.h, player.x, player.y, 64, 46)) {
       e.alive = false;
-      mkExplosion(e.x, e.y, 34);
+      mkExplosion(e.x, e.y, 34, { shipDebris: e.type === 'boss' || e.type === 'mid' ? 'heavy' : 'light' });
       if (e.type === 'boss' || e.type === 'mid') SFX.enemyExplodeHeavy();
       else SFX.enemyExplodeLight();
       hitPlayer();
